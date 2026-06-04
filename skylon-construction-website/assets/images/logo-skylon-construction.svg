@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Skylon Construction — original wordmark.
+     Architectural set-square mark (silver construction line) + premium navy wordmark.
+     Designed to feel part of the wider Skylon group without copying any existing logo. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 76" width="360" height="76"
+     role="img" aria-label="Skylon Construction">
+  <title>Skylon Construction</title>
+
+  <!-- Architectural set-square / construction-triangle mark -->
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <!-- right-angle legs (navy) -->
+    <path d="M8 12 V58 H50" stroke="#071A2D" stroke-width="3.4"/>
+    <!-- hypotenuse / construction line (silver) -->
+    <line x1="8" y1="12" x2="50" y2="58" stroke="#C7CDD3" stroke-width="2.2"/>
+    <!-- measurement ticks (silver) -->
+    <line x1="20" y1="55" x2="20" y2="58" stroke="#8E99A4" stroke-width="1.4"/>
+    <line x1="32" y1="55" x2="32" y2="58" stroke="#8E99A4" stroke-width="1.4"/>
+    <!-- right-angle corner accent (navy square) -->
+    <rect x="8.5" y="51.5" width="6" height="6" fill="#071A2D" stroke="none"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="74" y="37"
+        font-family="'Inter','Helvetica Neue',Arial,sans-serif"
+        font-size="30" font-weight="600" letter-spacing="3.2"
+        fill="#071A2D">SKYLON</text>
+
+  <!-- thin silver datum line under primary word -->
+  <line x1="75" y1="46" x2="252" y2="46" stroke="#C7CDD3" stroke-width="1.4"/>
+  <rect x="248" y="43.5" width="5" height="5" fill="#8E99A4"/>
+
+  <text x="76" y="63"
+        font-family="'Inter','Helvetica Neue',Arial,sans-serif"
+        font-size="12.5" font-weight="500" letter-spacing="6.1"
+        fill="#8E99A4">CONSTRUCTION</text>
+</svg>

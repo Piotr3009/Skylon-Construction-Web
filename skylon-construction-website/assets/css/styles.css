@@ -383,7 +383,6 @@ body.has-hero-full .site-header.is-top {
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  width: 100%;
 }
 
 .brand { display: inline-flex; align-items: center; flex-shrink: 0; }
@@ -397,15 +396,15 @@ body.has-hero-full .site-header.is-top {
 .nav__list {
   display: flex;
   align-items: center;
-  gap: clamp(1.2rem, 2.4vw, 2.3rem);
+  gap: clamp(0.9rem, 1.2vw, 1.6rem);
 }
 .nav__link {
   position: relative;
   display: inline-block;
   padding: 0.4rem 0;
-  font-size: 0.78rem;
+  font-size: 0.73rem;
   font-weight: 500;
-  letter-spacing: 0.17em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--mist);
   transition: color var(--t-fast);
@@ -438,9 +437,10 @@ body.has-hero-full .site-header.is-top {
   color: var(--silver-200);
   transition: color var(--t-fast);
 }
-.header__phone svg { width: 17px; height: 17px; }
+.header__phone svg { width: 18px; height: 18px; }
 .header__phone:hover { color: var(--white); }
-.header__actions .btn { padding: 0.78rem 1.5rem; }
+.header__actions .header__phone span { display: none; }
+.header__actions .btn { padding: 0.78rem 1.3rem; font-size: 0.74rem; letter-spacing: 0.15em; }
 
 /* Mobile toggle */
 .nav-toggle {
@@ -1593,19 +1593,12 @@ body.lightbox-open { overflow: hidden; }
 
 
 /* 24. RESPONSIVE ------------------------------------------------------------ */
-@media (max-width: 1400px) {
-  .nav__list { gap: clamp(0.8rem, 1.5vw, 1.5rem); }
-  .nav__link { font-size: 0.73rem; letter-spacing: 0.13em; }
-  .header__phone span { display: none; }
-  .header__actions .btn { padding: 0.72rem 1.2rem; letter-spacing: 0.14em; }
-}
-
 @media (max-width: 1080px) {
   .grid--4 { grid-template-columns: repeat(2, 1fr); }
   .group-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1260px) {
   :root { --header-h: 76px; --header-h-scrolled: 66px; }
 
   .nav-toggle { display: flex; }

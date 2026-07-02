@@ -81,6 +81,7 @@
           <li><a class="nav__link" href="services.html">Services</a></li>
           <li><a class="nav__link" href="projects.html">Projects</a></li>
           <li><a class="nav__link" href="gallery.html">Gallery</a></li>
+          <li><a class="nav__link" href="videos.html">Videos</a></li>
           <li><a class="nav__link" href="process.html">Process</a></li>
           <li><a class="nav__link" href="blog.html">Journal</a></li>
           <li><a class="nav__link" href="contact.html">Contact</a></li>
@@ -115,16 +116,24 @@
   <main id="main">
 
     <!-- ============================ HERO ============================ -->
-    <section class="hero">
-      <div class="hero__media">
-        <img src="assets/images/hero-construction.jpg" alt="Skylon Construction site — structure rising against the sky" fetchpriority="high">
+    <section class="hero hero--brand">
+      <div class="hero__media" aria-hidden="true">
+        <!-- TODO (VIDEO): drop your loop at assets/video/hero-loop.mp4 — see assets/video/README.txt.
+             Until then the poster image below is shown automatically. -->
+        <video autoplay muted loop playsinline preload="metadata"
+               poster="assets/images/placeholder-video.jpg">
+          <source src="assets/video/hero-loop.mp4" type="video/mp4">
+        </video>
       </div>
 
       <div class="hero__inner">
-        <p class="eyebrow">Design &nbsp;·&nbsp; Build &nbsp;·&nbsp; Craft</p>
-        <h1>Buildings of quiet <em class="silver-text">precision</em>.</h1>
-        <hr class="blade" aria-hidden="true">
-        <p class="hero__lead">High-end construction, refurbishment and fit-out across London and Hertfordshire — designed, built and finished by one integrated team.</p>
+        <div class="hero-brand">
+          <img src="assets/images/logo-skylon-transparent.png"
+               alt="Skylon Construction" width="2000" height="686" fetchpriority="high">
+          <span class="hero-brand__shine" aria-hidden="true"></span>
+        </div>
+        <hr class="blade blade--center blade--wide" aria-hidden="true">
+        <p class="hero__lead">High-end construction, refurbishment and fit-out across London and Hertfordshire — one integrated team, from design to final finish.</p>
         <div class="btn-row">
           <a class="btn btn--silver" href="contact.html">Request Consultation</a>
           <a class="btn btn--ghost" href="projects.html">View Projects</a>
@@ -139,7 +148,7 @@
       <div class="container intro-grid">
         <div class="reveal">
           <p class="eyebrow">The Skylon standard</p>
-          <p class="statement">Every project is a promise — of straight lines, honest materials and a finish that <em>outlasts fashion</em>.</p>
+          <h1 class="statement">Buildings of quiet <em>precision</em> — every project a promise of straight lines, honest materials and finishes that outlast fashion.</h1>
         </div>
         <div class="reveal" style="--i:1">
           <p class="lead">For over three decades our team has built, restored and refined homes and workplaces where detail is not decoration — it is the structure itself. Joinery, spraying, electrical and finishing sit under one roof, so nothing is lost between trades.</p>
@@ -399,6 +408,7 @@
             <a href="services.html">Services</a>
             <a href="projects.html">Projects</a>
             <a href="gallery.html">Gallery</a>
+            <a href="videos.html">Videos</a>
             <a href="process.html">Process</a>
             <a href="blog.html">Journal</a>
             <a href="contact.html">Contact</a>

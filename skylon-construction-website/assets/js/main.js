@@ -231,6 +231,13 @@
     });
   }
 
+  /* 5b. HERO VIDEO — respect reduced motion ------------------------------- */
+  var heroVideo = document.querySelector(".hero__media video");
+  if (heroVideo && prefersReducedMotion) {
+    heroVideo.removeAttribute("autoplay");
+    heroVideo.pause();
+  }
+
   /* 6. FOOTER YEAR ------------------------------------------------------------ */
   var yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());

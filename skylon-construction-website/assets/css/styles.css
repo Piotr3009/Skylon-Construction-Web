@@ -857,6 +857,18 @@ html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
 }
 .split__body .lead { margin-bottom: 1.6rem; }
 
+/* Caption under project photography — "shot on site" note */
+.photo-note {
+  display: block;
+  margin-top: 0.85rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--silver-600);
+}
+.on-dark .photo-note { color: var(--mist-soft); }
+
 .checklist { display: grid; gap: 0.85rem; margin: 1.4rem 0 1.9rem; }
 .checklist li {
   position: relative;

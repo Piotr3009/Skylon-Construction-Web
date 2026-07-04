@@ -936,6 +936,22 @@ html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
 .group-card:hover .group-card__link svg { transform: translate(3px, -3px); }
 
 
+/* Group cards on light background */
+.section--paper .group-card {
+  background: var(--white);
+  border-color: var(--line-light);
+}
+.section--paper .group-card:hover {
+  background: var(--white);
+  border-color: var(--silver-400);
+  box-shadow: var(--shadow-card);
+}
+.section--paper .group-card__name { color: var(--ink); }
+.section--paper .group-card p { color: var(--ink-soft); }
+.section--paper .group-card__link { color: var(--silver-600); }
+.section--paper .group-card:hover .group-card__link { color: var(--navy-800); }
+
+
 /* 15. PROCESS TIMELINE ----------------------------------------------------- */
 .timeline {
   position: relative;

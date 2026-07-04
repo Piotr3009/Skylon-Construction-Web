@@ -1132,6 +1132,7 @@ body.lightbox-open { overflow: hidden; }
   border-top: 1px solid var(--line-dark);
   border-bottom: 1px solid var(--line-dark);
 }
+.case-meta--6 { grid-template-columns: repeat(3, 1fr); }
 .case-meta dt {
   font-size: 0.7rem;
   font-weight: 600;

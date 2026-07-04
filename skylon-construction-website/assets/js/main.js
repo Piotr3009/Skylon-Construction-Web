@@ -55,6 +55,40 @@
     });
   }
 
+  /* 2b. NAV DROPDOWNS ------------------------------------------------------- */
+  var subItems = Array.prototype.slice.call(
+    document.querySelectorAll(".nav__item--sub")
+  );
+
+  function closeSubs(except) {
+    subItems.forEach(function (item) {
+      if (item !== except) {
+        item.classList.remove("is-open");
+        var b = item.querySelector(".nav__parent");
+        if (b) b.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  subItems.forEach(function (item) {
+    var btn = item.querySelector(".nav__parent");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var open = item.classList.toggle("is-open");
+      btn.setAttribute("aria-expanded", String(open));
+      closeSubs(item);
+    });
+  });
+
+  if (subItems.length) {
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".nav__item--sub")) closeSubs(null);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeSubs(null);
+    });
+  }
+
   /* 3. SCROLL REVEAL --------------------------------------------------------- */
   var revealItems = document.querySelectorAll(".reveal");
 

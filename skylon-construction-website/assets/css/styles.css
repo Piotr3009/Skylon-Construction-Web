@@ -553,13 +553,17 @@ body.has-hero-full .site-header.is-top {
 }
 html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
 
-/* Brand hero — full-screen video + large silver logo with shine sweep */
-.hero--brand { align-items: center; text-align: center; }
+/* Brand hero — compact (~72vh) video band + silver logo with shine sweep */
+.hero--brand {
+  align-items: center;
+  text-align: center;
+  min-height: max(72svh, 560px);
+}
 .hero--brand .hero__inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-block: clamp(7rem, 14vh, 10rem) clamp(4.5rem, 10vh, 7rem);
+  padding-block: clamp(6.5rem, 11vh, 8rem) clamp(2.8rem, 5.5vh, 4rem);
 }
 .hero__media video {
   position: absolute;
@@ -571,8 +575,8 @@ html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
 
 .hero-brand {
   position: relative;
-  width: min(720px, 88vw);
-  margin-bottom: 0.6rem;
+  width: min(480px, 78vw);
+  margin-bottom: 0.4rem;
 }
 .hero-brand img { width: 100%; height: auto; }
 .hero-brand__shine {
@@ -614,8 +618,8 @@ html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
   25%, 100% { transform: translateX(430%); }
 }
 
-.hero--brand .hero__lead { margin-inline: auto; margin-bottom: 2.2rem; }
-.hero--brand .blade { margin: 0 auto 1.9rem; }
+.hero--brand .hero__lead { margin-inline: auto; margin-bottom: 1.7rem; font-size: clamp(1rem, 1.3vw, 1.125rem); }
+.hero--brand .blade { margin: 0 auto 1.5rem; }
 .hero--brand .btn-row { justify-content: center; }
 
 /* Slim hero for inner pages */

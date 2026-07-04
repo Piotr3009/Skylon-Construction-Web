@@ -1462,6 +1462,32 @@ body.lightbox-open { overflow: hidden; }
 .form-note { font-size: 0.85rem; color: var(--silver-600); margin-top: 1.1rem; }
 
 
+/* Accreditation badge placeholders */
+.badge-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.8rem; }
+.badge-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 156px;
+  height: 76px;
+  padding: 0 1.3rem;
+  border: 1px dashed var(--silver-400);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  color: var(--silver-600);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.on-dark .badge-slot {
+  background: rgba(13, 34, 56, 0.35);
+  border-color: rgba(197, 206, 215, 0.35);
+  color: var(--mist-soft);
+}
+
+
 /* 20. FAQ ------------------------------------------------------------------ */
 .faq { border-top: 1px solid var(--line-light); }
 .faq details { border-bottom: 1px solid var(--line-light); }

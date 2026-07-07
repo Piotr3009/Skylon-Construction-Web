@@ -856,6 +856,17 @@ html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
 }
 .split__body .lead { margin-bottom: 1.6rem; }
 
+/* Checklist with serif mini-headings (description on new line) */
+.checklist--heads li strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  margin-bottom: 0.2rem;
+}
+
 /* Caption under project photography — "shot on site" note */
 .photo-note {
   display: block;

@@ -6,6 +6,7 @@ const BRANCH = "main";
 const SITE_DIR = "skylon-construction-website";
 const PAGE_RE = /^[a-z0-9\-]+\.html$/;
 const GRID_RE = /^[a-z0-9\-]+-g\d+$/;
+const IMG_RE = /^[a-z0-9\-]+-i\d+$/;
 const SRC_RE = /^assets\/images\/[a-z0-9][a-z0-9\-\/_.]*\.(webp|jpg|jpeg|png)$/i;
 
 function safeEqual(a, b) {
@@ -90,15 +91,22 @@ function permute(fragment, blocks, order) {
   return out;
 }
 
-function renumberDataEdit(cloneHtml, fullHtml, slug) {
+function renumberAttr(cloneHtml, fullHtml, slug, attr, pat, fmt) {
   let max = 0;
-  const re = new RegExp(`data-edit="${slug}-(\\d{3})"`, "g");
+  const re = new RegExp(`${attr}="${slug}-${pat}"`, "g");
   let m;
   while ((m = re.exec(fullHtml))) max = Math.max(max, parseInt(m[1], 10));
-  return cloneHtml.replace(new RegExp(`data-edit="${slug}-\\d{3}"`, "g"), function () {
+  return cloneHtml.replace(new RegExp(`${attr}="${slug}-${pat.replace(/\((.*)\)/, "$1")}"`, "g"), function () {
     max += 1;
-    return `data-edit="${slug}-${String(max).padStart(3, "0")}"`;
+    return `${attr}="${slug}-${fmt(max)}"`;
   });
+}
+function renumberDataEdit(cloneHtml, fullHtml, slug) {
+  cloneHtml = renumberAttr(cloneHtml, fullHtml, slug, "data-edit", "(\\d{3})",
+    function (n) { return String(n).padStart(3, "0"); });
+  cloneHtml = renumberAttr(cloneHtml, fullHtml, slug, "data-img", "i(\\d+)",
+    function (n) { return "i" + n; });
+  return cloneHtml;
 }
 
 /* ---------- GitHub io ---------- */
@@ -225,6 +233,18 @@ module.exports = async (req, res) => {
       const newFrag = frag.slice(0, b.start) + frag.slice(b.end);
       html = html.slice(0, region.start) + newFrag + html.slice(region.end);
       message = `Gallery remove via site editor: ${page} (#${index + 1})`;
+    } else if (body.action === "setImageSrc") {
+      const imgId = body.imgId, src = body.src;
+      if (!IMG_RE.test(String(imgId)) || !SRC_RE.test(String(src))) {
+        res.status(400).json({ error: "Bad imgId/src" });
+        return;
+      }
+      const tagRe = new RegExp(`<img\\b[^>]*data-img="${imgId}"[^>]*>`);
+      const tagMatch = html.match(tagRe);
+      if (!tagMatch) { res.status(404).json({ error: "Image slot not found" }); return; }
+      const newTag = tagMatch[0].replace(/src="[^"]*"/, `src="${src}"`);
+      html = html.replace(tagMatch[0], newTag);
+      message = `Photo replace via site editor: ${page} (${imgId})`;
     } else {
       res.status(400).json({ error: "Unknown action" });
       return;

@@ -364,6 +364,7 @@
                   var clone = tpl.cloneNode(true);
                   clone.querySelectorAll(".edit-item-tools,.edit-pencil").forEach(function (n) { n.remove(); });
                   clone.querySelectorAll("[data-edit]").forEach(function (n) { n.removeAttribute("data-edit"); n.removeAttribute("contenteditable"); });
+                  clone.querySelectorAll("[data-img]").forEach(function (n) { n.removeAttribute("data-img"); });
                   var im = clone.querySelector("img");
                   im.src = URL.createObjectURL(blob); im.removeAttribute("srcset");
                   grid.appendChild(clone);
@@ -563,6 +564,10 @@
     var okBtn = m.box.querySelector("[data-ok]");
     okBtn.disabled = true;
     state.textContent = "Uploading…";
+    var imgId = img.getAttribute("data-img");
+    var newPath = imgId
+      ? "assets/images/uploads/" + imgId + "-" + Date.now() + ".webp"
+      : path; // fallback dla slotu bez ID
     var reader = new FileReader();
     reader.onload = function () {
       var base64 = String(reader.result).split(",")[1];
@@ -571,30 +576,40 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password: sessionStorage.getItem("skylonEditPw"),
-          path: path,
+          path: newPath,
           dataBase64: base64,
         }),
       })
         .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+        .then(function (up) {
+          if (up.s === 401) throw { auth: true };
+          if (!up.j.ok) throw { msg: up.j.error };
+          if (!imgId) return { s: 200, j: { ok: true } };
+          return fetch(STRUCT_API, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              password: sessionStorage.getItem("skylonEditPw"),
+              page: pageName, action: "setImageSrc",
+              imgId: imgId, src: newPath,
+            }),
+          }).then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); });
+        })
         .then(function (res) {
-          if (res.s === 401) {
-            sessionStorage.removeItem("skylonEditPw");
-            state.textContent = "Wrong password. Click the logo 5\u00D7 and try again.";
-            okBtn.disabled = false;
-            return;
-          }
-          if (!res.j.ok) {
-            state.textContent = "Error: " + (res.j.error || "unknown");
-            okBtn.disabled = false;
-            return;
-          }
-          img.src = URL.createObjectURL(blob); // instant local preview
+          if (res.s === 401) throw { auth: true };
+          if (!res.j.ok) throw { msg: res.j.error };
+          img.src = URL.createObjectURL(blob); // natychmiastowy podglad
           state.textContent = "Saved. The live site will update in about a minute.";
           okBtn.style.display = "none";
           m.box.querySelector("[data-x]").textContent = "Close";
         })
-        .catch(function () {
-          state.textContent = "Network error. Try again.";
+        .catch(function (err) {
+          if (err && err.auth) {
+            sessionStorage.removeItem("skylonEditPw");
+            state.textContent = "Wrong password. Click the logo 5\u00D7 and try again.";
+          } else {
+            state.textContent = "Error: " + ((err && err.msg) || "network, try again");
+          }
           okBtn.disabled = false;
         });
     };

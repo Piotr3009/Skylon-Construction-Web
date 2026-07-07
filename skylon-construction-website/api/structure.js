@@ -65,7 +65,7 @@ function gridRegion(html, gridId) {
 }
 
 function childTagOf(inner) {
-  const m = inner.match(/<(figure|article|a)[\s>]/i);
+  const m = inner.match(/<(figure|article|button|a)[\s>]/i);
   return m ? m[1].toLowerCase() : null;
 }
 
@@ -204,13 +204,16 @@ module.exports = async (req, res) => {
       const region = gridRegion(html, gid);
       if (!region) { res.status(404).json({ error: "Grid not found" }); return; }
       const frag = html.slice(region.start, region.end);
-      const figures = topBlocks(frag, "figure");
-      if (!figures.length) { res.status(400).json({ error: "Grid has no figure template" }); return; }
+      const tag = childTagOf(frag);
+      const figures = tag ? topBlocks(frag, tag) : [];
+      if (!figures.length) { res.status(400).json({ error: "Grid has no item template" }); return; }
       let clone = frag.slice(figures[0].start, figures[0].end);
       clone = clone.replace(/src="assets\/images\/[^"]+"/, `src="${src}"`);
       clone = clone.replace(/alt="[^"]*"/, `alt="${alt}"`);
       clone = clone.replace(/<!--[\s\S]*?-->/g, "");
       clone = clone.replace(/(<figcaption\b[^>]*>)[\s\S]*?(<\/figcaption>)/, "$1$2");
+      clone = clone.replace(/<span class="masonry__caption">[\s\S]*?<\/strong>\s*<\/span>/, "");
+      clone = clone.replace(/aria-label="[^"]*"/, 'aria-label="View larger"');
       clone = renumberDataEdit(clone, html, slug);
       const last = figures[figures.length - 1];
       const insertAt = region.start + last.end;

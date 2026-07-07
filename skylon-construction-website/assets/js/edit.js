@@ -177,14 +177,14 @@
     // siatki: strzalki, kosz na figurach, Add photos
     document.querySelectorAll("[data-grid]").forEach(function (grid) {
       var kids = Array.prototype.filter.call(grid.children, function (n) {
-        return /^(FIGURE|ARTICLE|A)$/.test(n.tagName);
+        return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName);
       });
       kids.forEach(function (kid, i) {
         kid.dataset.origIndex = String(i);
         decorateGridChild(grid, kid);
       });
       // Add photos tylko dla siatek figur
-      if (kids.length && kids[0].tagName === "FIGURE" && kids[0].querySelector("img")) {
+      if (kids.length && /^(FIGURE|BUTTON)$/.test(kids[0].tagName) && kids[0].querySelector("img")) {
         var bar = el("div", "edit-addbar");
         var btn = el("button", "edit-btn", "+ Add photos");
         btn.type = "button";
@@ -197,7 +197,7 @@
 
   function decorateGridChild(grid, kid) {
     kid.style.position = kid.style.position || "relative";
-    var isFig = kid.tagName === "FIGURE" && kid.querySelector('img[src^="assets/images/"], img[src^="blob:"]');
+    var isFig = /^(FIGURE|BUTTON)$/.test(kid.tagName) && kid.querySelector('img[src^="assets/images/"], img[src^="blob:"]');
     var tools = el("div", "edit-item-tools");
     tools.innerHTML =
       "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
@@ -275,7 +275,7 @@
     Array.prototype.filter.call(main.children, function (n) { return n.tagName === "SECTION"; })
       .forEach(function (n, i) { n.dataset.origIndex = String(i); });
     document.querySelectorAll("[data-grid]").forEach(function (grid) {
-      Array.prototype.filter.call(grid.children, function (n) { return /^(FIGURE|ARTICLE|A)$/.test(n.tagName); })
+      Array.prototype.filter.call(grid.children, function (n) { return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName); })
         .forEach(function (n, i) { n.dataset.origIndex = String(i); });
     });
   }
@@ -291,7 +291,7 @@
     if (layoutDirty) { alert("Save layout first, then remove photos."); return; }
     if (!confirm("Remove this photo from the page?")) return;
     var kids = Array.prototype.filter.call(grid.children, function (n) {
-      return /^(FIGURE|ARTICLE|A)$/.test(n.tagName);
+      return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName);
     });
     var index = kids.indexOf(fig);
     fetch(STRUCT_API, {
@@ -360,7 +360,7 @@
                 }).then(function (r) { return r.json(); }).then(function (j2) {
                   if (!j2.ok) { alert("Error: " + (j2.error || "")); return; }
                   // natychmiastowy podglad: klon pierwszej figury
-                  var tpl = grid.querySelector("figure");
+                  var tpl = grid.querySelector("figure, button.masonry__item") || grid.children[0];
                   var clone = tpl.cloneNode(true);
                   clone.querySelectorAll(".edit-item-tools,.edit-pencil").forEach(function (n) { n.remove(); });
                   clone.querySelectorAll("[data-edit]").forEach(function (n) { n.removeAttribute("data-edit"); n.removeAttribute("contenteditable"); });

@@ -29,6 +29,7 @@ function sanitize(html) {
   s = s.replace(/<br[^>]*>/gi, "<br>");
   s = s.replace(/\s*[\u2014\u2013]\s*/g, ", "); // em/en dash -> comma (site rule)
   s = s.replace(/&mdash;|&ndash;/gi, ", ");
+  s = s.replace(/[\s\u00A0]+-{1,2}[\s\u00A0]+/g, ", ");
   s = s.replace(/\s+,/g, ",").replace(/ {2,}/g, " ");
   s = s.replace(/^(?:\s|<br>)+|(?:\s|<br>)+$/g, "");
   return s;

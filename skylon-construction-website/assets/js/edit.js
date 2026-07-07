@@ -417,7 +417,7 @@
 
   var lastJoke = 0;
   function dashJoke(elx) {
-    if (!/[\u2014\u2013]/.test(elx.innerText)) return;
+    if (!/[\u2014\u2013]|[\s\u00A0]-{1,2}[\s\u00A0]/.test(elx.innerText)) return;
     var now = Date.now();
     if (now - lastJoke < 10000) return;
     lastJoke = now;

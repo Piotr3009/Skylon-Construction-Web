@@ -103,6 +103,10 @@ module.exports = async (req, res) => {
       }),
     });
     if (!put.ok) {
+      if (put.status === 409) {
+        res.status(409).json({ error: "Someone else just saved changes. Refresh the page and try again." });
+        return;
+      }
       const detail = await put.text();
       res.status(502).json({ error: "GitHub commit failed", detail: detail.slice(0, 200) });
       return;

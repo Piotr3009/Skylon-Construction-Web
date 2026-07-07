@@ -134,6 +134,13 @@
 
     initTextEditing();
     initStructure();
+
+    // w trybie edycji klik w edytowalny tekst wewnatrz linku edytuje, nie nawiguje
+    document.addEventListener("click", function (e) {
+      if (!document.body.classList.contains("is-editing")) return;
+      var slot = e.target.closest && e.target.closest("[data-edit]");
+      if (slot && e.target.closest("a[href]")) e.preventDefault();
+    }, true);
   }
 
 
@@ -158,8 +165,12 @@
       tools.innerHTML =
         "<button class='edit-mini' data-up title='Move section up'>\u2191</button>" +
         "<button class='edit-mini' data-down title='Move section down'>\u2193</button>";
-      tools.querySelector("[data-up]").addEventListener("click", function () { moveNode(sec, -1); });
-      tools.querySelector("[data-down]").addEventListener("click", function () { moveNode(sec, 1); });
+      tools.querySelector("[data-up]").addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation(); moveNode(sec, -1);
+      });
+      tools.querySelector("[data-down]").addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation(); moveNode(sec, 1);
+      });
       sec.appendChild(tools);
     });
 
@@ -170,17 +181,7 @@
       });
       kids.forEach(function (kid, i) {
         kid.dataset.origIndex = String(i);
-        kid.style.position = kid.style.position || "relative";
-        var isFig = kid.tagName === "FIGURE" && kid.querySelector('img[src^="assets/images/"]');
-        var tools = el("div", "edit-item-tools");
-        tools.innerHTML =
-          "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
-          "<button class='edit-mini' data-right title='Move later'>\u2192</button>" +
-          (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "");
-        tools.querySelector("[data-left]").addEventListener("click", function () { moveNode(kid, -1); });
-        tools.querySelector("[data-right]").addEventListener("click", function () { moveNode(kid, 1); });
-        if (isFig) tools.querySelector("[data-del]").addEventListener("click", function () { removeFigure(grid, kid); });
-        kid.appendChild(tools);
+        decorateGridChild(grid, kid);
       });
       // Add photos tylko dla siatek figur
       if (kids.length && kids[0].tagName === "FIGURE" && kids[0].querySelector("img")) {
@@ -192,6 +193,26 @@
         grid.parentElement.insertBefore(bar, grid.nextSibling);
       }
     });
+  }
+
+  function decorateGridChild(grid, kid) {
+    kid.style.position = kid.style.position || "relative";
+    var isFig = kid.tagName === "FIGURE" && kid.querySelector('img[src^="assets/images/"], img[src^="blob:"]');
+    var tools = el("div", "edit-item-tools");
+    tools.innerHTML =
+      "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
+      "<button class='edit-mini' data-right title='Move later'>\u2192</button>" +
+      (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "");
+    tools.querySelector("[data-left]").addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); moveNode(kid, -1);
+    });
+    tools.querySelector("[data-right]").addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); moveNode(kid, 1);
+    });
+    if (isFig) tools.querySelector("[data-del]").addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid);
+    });
+    kid.appendChild(tools);
   }
 
   function moveNode(node, dir) {
@@ -254,7 +275,7 @@
     Array.prototype.filter.call(main.children, function (n) { return n.tagName === "SECTION"; })
       .forEach(function (n, i) { n.dataset.origIndex = String(i); });
     document.querySelectorAll("[data-grid]").forEach(function (grid) {
-      Array.prototype.filter.call(grid.children, function (n) { return n.dataset && n.dataset.origIndex != null; })
+      Array.prototype.filter.call(grid.children, function (n) { return /^(FIGURE|ARTICLE|A)$/.test(n.tagName); })
         .forEach(function (n, i) { n.dataset.origIndex = String(i); });
     });
   }
@@ -346,6 +367,8 @@
                   var im = clone.querySelector("img");
                   im.src = URL.createObjectURL(blob); im.removeAttribute("srcset");
                   grid.appendChild(clone);
+                  decorateGridChild(grid, clone);
+                  reindex();
                   addSequential(grid, files, i + 1);
                 });
               })

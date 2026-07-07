@@ -202,6 +202,7 @@ module.exports = async (req, res) => {
       clone = clone.replace(/src="assets\/images\/[^"]+"/, `src="${src}"`);
       clone = clone.replace(/alt="[^"]*"/, `alt="${alt}"`);
       clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+      clone = clone.replace(/(<figcaption\b[^>]*>)[\s\S]*?(<\/figcaption>)/, "$1$2");
       clone = renumberDataEdit(clone, html, slug);
       const last = figures[figures.length - 1];
       const insertAt = region.start + last.end;
@@ -231,6 +232,10 @@ module.exports = async (req, res) => {
 
     const put = await ghPut(api, ghHeaders, message, html, meta.sha);
     if (!put.ok) {
+      if (put.status === 409) {
+        res.status(409).json({ error: "Someone else just saved changes. Refresh the page and try again." });
+        return;
+      }
       const detail = await put.text();
       res.status(502).json({ error: "GitHub commit failed", detail: detail.slice(0, 200) });
       return;

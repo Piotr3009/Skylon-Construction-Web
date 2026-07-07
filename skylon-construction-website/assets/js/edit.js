@@ -24,8 +24,21 @@
     "body.is-editing [data-edit]{outline:1px dashed rgba(90,120,150,.55);outline-offset:3px;cursor:text;min-height:1em}" +
     "body.is-editing [data-edit]:hover{outline-color:#3E6C97;background:rgba(62,108,151,.06)}" +
     "body.is-editing [data-edit].edit-dirty{outline:2px solid #B98A2F;background:rgba(185,138,47,.07)}" +
-    ".edit-savebar{position:fixed;bottom:14px;right:14px;z-index:9999;display:flex;gap:10px;align-items:center;background:#0D2238;border:1px solid rgba(197,206,215,.35);border-radius:8px;padding:10px 12px}" +
-    ".edit-savebar span{color:#DCE2E8;font:600 11px Inter;letter-spacing:.1em;text-transform:uppercase}";
+    ".edit-savebar{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;gap:14px;align-items:center;background:#0D2238;border:1px solid rgba(197,206,215,.4);border-radius:10px;padding:14px 18px;box-shadow:0 18px 44px rgba(5,14,27,.55)}" +
+    ".edit-savebar span{color:#DCE2E8;font:600 13px Inter;letter-spacing:.1em;text-transform:uppercase}" +
+    ".edit-savebar .edit-btn{padding:13px 22px;font-size:13px}" +
+    ".edit-modal__box{max-width:480px;padding:32px}" +
+    ".edit-modal__box h3{font-size:18px}" +
+    ".edit-modal__box input[type=password]{padding:15px 16px;font-size:17px}" +
+    ".edit-modal__row .edit-btn{padding:13px 22px;font-size:13px}" +
+    ".edit-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10001;background:#0D2238;color:#F0E9DA;border:1px solid rgba(232,217,188,.5);border-radius:10px;padding:26px 34px;font:600 17px/1.5 Inter;text-align:center;max-width:440px;box-shadow:0 24px 60px rgba(5,14,27,.6)}" +
+    ".edit-sec-tools{position:absolute;top:50%;right:18px;left:auto;transform:translateY(-50%);z-index:60;display:flex;flex-direction:column;gap:6px}" +
+    ".edit-item-tools{position:absolute;top:8px;left:8px;z-index:60;display:flex;gap:6px}" +
+    ".edit-mini{width:34px;height:34px;border:0;border-radius:8px;background:#0D2238;color:#E9EDF1;cursor:pointer;font:700 15px Inter;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(5,14,27,.5);opacity:.92}" +
+    ".edit-mini:hover{opacity:1;background:#143049}" +
+    ".edit-mini--del{background:#5C1E22}.edit-mini--del:hover{background:#7A272D}" +
+    ".edit-addbar{display:flex;justify-content:center;margin-top:18px}" +
+    ".edit-addbar .edit-btn{padding:13px 24px;font-size:13px;background:#0D2238;color:#E9EDF1;border-color:#0D2238}";
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -120,6 +133,230 @@
     });
 
     initTextEditing();
+    initStructure();
+  }
+
+
+  /* ---------- structure: reorder sections/cards, add/remove gallery photos ---------- */
+  var STRUCT_API = "/api/structure";
+  var layoutDirty = false;
+  var pageName = (location.pathname.split("/").pop() || "index.html");
+  if (!/\.html$/.test(pageName)) pageName = "index.html";
+
+  function initStructure() {
+    var main = document.getElementById("main");
+    if (!main) return;
+
+    // sekcje: strzałki gora/dol
+    var sections = Array.prototype.filter.call(main.children, function (n) {
+      return n.tagName === "SECTION";
+    });
+    sections.forEach(function (sec, i) {
+      sec.dataset.origIndex = String(i);
+      sec.style.position = sec.style.position || "relative";
+      var tools = el("div", "edit-sec-tools");
+      tools.innerHTML =
+        "<button class='edit-mini' data-up title='Move section up'>\u2191</button>" +
+        "<button class='edit-mini' data-down title='Move section down'>\u2193</button>";
+      tools.querySelector("[data-up]").addEventListener("click", function () { moveNode(sec, -1); });
+      tools.querySelector("[data-down]").addEventListener("click", function () { moveNode(sec, 1); });
+      sec.appendChild(tools);
+    });
+
+    // siatki: strzalki, kosz na figurach, Add photos
+    document.querySelectorAll("[data-grid]").forEach(function (grid) {
+      var kids = Array.prototype.filter.call(grid.children, function (n) {
+        return /^(FIGURE|ARTICLE|A)$/.test(n.tagName);
+      });
+      kids.forEach(function (kid, i) {
+        kid.dataset.origIndex = String(i);
+        kid.style.position = kid.style.position || "relative";
+        var isFig = kid.tagName === "FIGURE" && kid.querySelector('img[src^="assets/images/"]');
+        var tools = el("div", "edit-item-tools");
+        tools.innerHTML =
+          "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
+          "<button class='edit-mini' data-right title='Move later'>\u2192</button>" +
+          (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "");
+        tools.querySelector("[data-left]").addEventListener("click", function () { moveNode(kid, -1); });
+        tools.querySelector("[data-right]").addEventListener("click", function () { moveNode(kid, 1); });
+        if (isFig) tools.querySelector("[data-del]").addEventListener("click", function () { removeFigure(grid, kid); });
+        kid.appendChild(tools);
+      });
+      // Add photos tylko dla siatek figur
+      if (kids.length && kids[0].tagName === "FIGURE" && kids[0].querySelector("img")) {
+        var bar = el("div", "edit-addbar");
+        var btn = el("button", "edit-btn", "+ Add photos");
+        btn.type = "button";
+        btn.addEventListener("click", function () { addPhotos(grid); });
+        bar.appendChild(btn);
+        grid.parentElement.insertBefore(bar, grid.nextSibling);
+      }
+    });
+  }
+
+  function moveNode(node, dir) {
+    var parent = node.parentElement;
+    var sib = dir < 0 ? node.previousElementSibling : node.nextElementSibling;
+    while (sib && !sib.dataset.origIndex) sib = dir < 0 ? sib.previousElementSibling : sib.nextElementSibling;
+    if (!sib) return;
+    if (dir < 0) parent.insertBefore(node, sib);
+    else parent.insertBefore(sib, node);
+    layoutDirty = true;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    renderSaveBar();
+  }
+
+  function currentOrders() {
+    var main = document.getElementById("main");
+    var sections = Array.prototype.filter.call(main.children, function (n) {
+      return n.tagName === "SECTION" && n.dataset.origIndex != null;
+    }).map(function (n) { return parseInt(n.dataset.origIndex, 10); });
+    var grids = {};
+    document.querySelectorAll("[data-grid]").forEach(function (grid) {
+      var order = Array.prototype.filter.call(grid.children, function (n) {
+        return n.dataset && n.dataset.origIndex != null;
+      }).map(function (n) { return parseInt(n.dataset.origIndex, 10); });
+      var changed = order.some(function (v, i) { return v !== i; });
+      if (changed) grids[grid.getAttribute("data-grid")] = order;
+    });
+    var secChanged = sections.some(function (v, i) { return v !== i; });
+    return { sections: secChanged ? sections : null, grids: grids };
+  }
+
+  function saveLayout() {
+    var o = currentOrders();
+    var payload = { password: sessionStorage.getItem("skylonEditPw"), page: pageName, action: "reorder" };
+    if (o.sections) payload.sections = o.sections;
+    if (Object.keys(o.grids).length) payload.grids = o.grids;
+    if (!payload.sections && !payload.grids) { layoutDirty = false; renderSaveBar(); return; }
+    var btn = savebar.querySelector("[data-savelayout]");
+    btn.disabled = true; btn.textContent = "Saving\u2026";
+    fetch(STRUCT_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false; btn.textContent = "Save layout";
+        if (!j.ok) { alert("Error: " + (j.error || "unknown")); return; }
+        layoutDirty = false;
+        flash("Layout saved \u2713 live in ~1 minute");
+        // po zapisie kolejnosc w pliku = kolejnosc DOM; zresetuj indeksy
+        reindex();
+        renderSaveBar();
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = "Save layout"; alert("Network error."); });
+  }
+
+  function reindex() {
+    var main = document.getElementById("main");
+    Array.prototype.filter.call(main.children, function (n) { return n.tagName === "SECTION"; })
+      .forEach(function (n, i) { n.dataset.origIndex = String(i); });
+    document.querySelectorAll("[data-grid]").forEach(function (grid) {
+      Array.prototype.filter.call(grid.children, function (n) { return n.dataset && n.dataset.origIndex != null; })
+        .forEach(function (n, i) { n.dataset.origIndex = String(i); });
+    });
+  }
+
+  function flash(msg) {
+    var ok = el("div", "edit-badge", msg);
+    ok.style.left = "50%"; ok.style.transform = "translateX(-50%)"; ok.style.bottom = "84px";
+    document.body.appendChild(ok);
+    setTimeout(function () { ok.remove(); }, 5000);
+  }
+
+  function removeFigure(grid, fig) {
+    if (layoutDirty) { alert("Save layout first, then remove photos."); return; }
+    if (!confirm("Remove this photo from the page?")) return;
+    var kids = Array.prototype.filter.call(grid.children, function (n) {
+      return /^(FIGURE|ARTICLE|A)$/.test(n.tagName);
+    });
+    var index = kids.indexOf(fig);
+    fetch(STRUCT_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: sessionStorage.getItem("skylonEditPw"),
+        page: pageName, action: "removeItem",
+        grid: grid.getAttribute("data-grid"), index: index,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) { alert("Error: " + (j.error || "unknown")); return; }
+        fig.remove();
+        reindex();
+        flash("Photo removed \u2713 live in ~1 minute");
+      })
+      .catch(function () { alert("Network error."); });
+  }
+
+  function addPhotos(grid) {
+    if (layoutDirty) { alert("Save layout first, then add photos."); return; }
+    var input = el("input");
+    input.type = "file"; input.accept = "image/*"; input.multiple = true;
+    input.addEventListener("change", function () {
+      var files = Array.prototype.slice.call(input.files || []);
+      if (files.length) addSequential(grid, files, 0);
+    });
+    input.click();
+  }
+
+  function addSequential(grid, files, i) {
+    if (i >= files.length) { flash("Added " + files.length + " photo" + (files.length > 1 ? "s" : "") + " \u2713 live in ~1 minute"); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var image = new Image();
+      image.onload = function () {
+        var scale = Math.min(1, MAX_W / image.width);
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(function (blob) {
+          var gid = grid.getAttribute("data-grid");
+          var src = "assets/images/uploads/" + gid + "-" + Date.now() + ".webp";
+          var r2 = new FileReader();
+          r2.onload = function () {
+            var base64 = String(r2.result).split(",")[1];
+            fetch(API, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: sessionStorage.getItem("skylonEditPw"), path: src, dataBase64: base64 }),
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (j) {
+                if (!j.ok) { alert("Upload error: " + (j.error || "")); return; }
+                return fetch(STRUCT_API, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    password: sessionStorage.getItem("skylonEditPw"),
+                    page: pageName, action: "addFigure",
+                    grid: grid.getAttribute("data-grid"), src: src, alt: "",
+                  }),
+                }).then(function (r) { return r.json(); }).then(function (j2) {
+                  if (!j2.ok) { alert("Error: " + (j2.error || "")); return; }
+                  // natychmiastowy podglad: klon pierwszej figury
+                  var tpl = grid.querySelector("figure");
+                  var clone = tpl.cloneNode(true);
+                  clone.querySelectorAll(".edit-item-tools,.edit-pencil").forEach(function (n) { n.remove(); });
+                  clone.querySelectorAll("[data-edit]").forEach(function (n) { n.removeAttribute("data-edit"); n.removeAttribute("contenteditable"); });
+                  var im = clone.querySelector("img");
+                  im.src = URL.createObjectURL(blob); im.removeAttribute("srcset");
+                  grid.appendChild(clone);
+                  addSequential(grid, files, i + 1);
+                });
+              })
+              .catch(function () { alert("Network error."); });
+          };
+          r2.readAsDataURL(blob);
+        }, "image/webp", QUALITY);
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(files[i]);
   }
 
   /* ---------- text editing ---------- */
@@ -133,6 +370,7 @@
       el.setAttribute("spellcheck", "false");
       el.dataset.editOriginal = el.innerHTML;
       el.addEventListener("input", function () {
+        dashJoke(el);
         var id = el.getAttribute("data-edit");
         if (el.innerHTML !== el.dataset.editOriginal) {
           dirty[id] = el;
@@ -154,6 +392,18 @@
     renderSaveBar();
   }
 
+  var lastJoke = 0;
+  function dashJoke(elx) {
+    if (!/[\u2014\u2013]/.test(elx.innerText)) return;
+    var now = Date.now();
+    if (now - lastJoke < 10000) return;
+    lastJoke = now;
+    var toast = el("div", "edit-toast",
+      "Prosz\u0119 usun\u0105\u0107 my\u015Blniki.<br><span style='font-weight:400;font-size:14px;color:#C9BFA6'>Specjalne polecenie Izabeli \u{1F609}</span>");
+    document.body.appendChild(toast);
+    setTimeout(function () { toast.remove(); }, 4200);
+  }
+
   var savebar = null;
   function renderSaveBar() {
     var n = Object.keys(dirty).length;
@@ -162,10 +412,12 @@
       savebar.style.display = "none";
       savebar.innerHTML =
         "<span class='edit-count'></span>" +
-        "<button class='edit-btn' data-undo>Undo all</button>" +
-        "<button class='edit-btn edit-btn--primary' data-save>Save texts</button>";
+        "<button class='edit-btn' data-undo>Undo texts</button>" +
+        "<button class='edit-btn edit-btn--primary' data-save>Save texts</button>" +
+        "<button class='edit-btn edit-btn--primary' data-savelayout>Save layout</button>";
       document.body.appendChild(savebar);
       savebar.querySelector("[data-save]").addEventListener("click", saveTexts);
+      savebar.querySelector("[data-savelayout]").addEventListener("click", saveLayout);
       savebar.querySelector("[data-undo]").addEventListener("click", function () {
         Object.keys(dirty).forEach(function (id) {
           var elx = dirty[id];
@@ -176,8 +428,15 @@
         renderSaveBar();
       });
     }
-    savebar.style.display = n ? "flex" : "none";
-    if (n) savebar.querySelector(".edit-count").textContent = n + " change" + (n > 1 ? "s" : "");
+    var show = n > 0 || layoutDirty;
+    savebar.style.display = show ? "flex" : "none";
+    savebar.querySelector("[data-save]").style.display = n ? "" : "none";
+    savebar.querySelector("[data-undo]").style.display = n ? "" : "none";
+    savebar.querySelector("[data-savelayout]").style.display = layoutDirty ? "" : "none";
+    var label = [];
+    if (n) label.push(n + " text change" + (n > 1 ? "s" : ""));
+    if (layoutDirty) label.push("layout moved");
+    savebar.querySelector(".edit-count").textContent = label.join(" \u00B7 ");
   }
 
   function saveTexts() {

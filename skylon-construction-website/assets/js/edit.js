@@ -20,7 +20,12 @@
     ".edit-modal__row{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}" +
     ".edit-btn{padding:10px 16px;border-radius:4px;border:1px solid #C5CED7;background:#fff;font:600 11px Inter;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}" +
     ".edit-btn--primary{background:#0D2238;border-color:#0D2238;color:#E9EDF1}" +
-    ".edit-msg{font:400 13px/1.5 Inter;color:#5A6B7C;margin-top:10px}";
+    ".edit-msg{font:400 13px/1.5 Inter;color:#5A6B7C;margin-top:10px}" +
+    "body.is-editing [data-edit]{outline:1px dashed rgba(90,120,150,.55);outline-offset:3px;cursor:text;min-height:1em}" +
+    "body.is-editing [data-edit]:hover{outline-color:#3E6C97;background:rgba(62,108,151,.06)}" +
+    "body.is-editing [data-edit].edit-dirty{outline:2px solid #B98A2F;background:rgba(185,138,47,.07)}" +
+    ".edit-savebar{position:fixed;bottom:14px;right:14px;z-index:9999;display:flex;gap:10px;align-items:center;background:#0D2238;border:1px solid rgba(197,206,215,.35);border-radius:8px;padding:10px 12px}" +
+    ".edit-savebar span{color:#DCE2E8;font:600 11px Inter;letter-spacing:.1em;text-transform:uppercase}";
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -94,7 +99,7 @@
     if (document.body.classList.contains("is-editing")) return;
     document.body.classList.add("is-editing");
     var style = el("style"); style.textContent = css; document.head.appendChild(style);
-    var badge = el("div", "edit-badge", "Edit mode &middot; photos");
+    var badge = el("div", "edit-badge", "Edit mode &middot; photos + text");
     document.body.appendChild(badge);
 
     var imgs = document.querySelectorAll('img[src^="assets/images/"]');
@@ -113,6 +118,111 @@
       });
       holder.appendChild(b);
     });
+
+    initTextEditing();
+  }
+
+  /* ---------- text editing ---------- */
+  var TEXT_API = "/api/update-text";
+  var dirty = {};
+
+  function initTextEditing() {
+    var slots = document.querySelectorAll("[data-edit]");
+    slots.forEach(function (el) {
+      el.setAttribute("contenteditable", "true");
+      el.setAttribute("spellcheck", "false");
+      el.dataset.editOriginal = el.innerHTML;
+      el.addEventListener("input", function () {
+        var id = el.getAttribute("data-edit");
+        if (el.innerHTML !== el.dataset.editOriginal) {
+          dirty[id] = el;
+          el.classList.add("edit-dirty");
+        } else {
+          delete dirty[id];
+          el.classList.remove("edit-dirty");
+        }
+        renderSaveBar();
+      });
+      // Enter = nowa linia zamiast dziwnych divów
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          document.execCommand("insertLineBreak");
+        }
+      });
+    });
+    renderSaveBar();
+  }
+
+  var savebar = null;
+  function renderSaveBar() {
+    var n = Object.keys(dirty).length;
+    if (!savebar) {
+      savebar = el("div", "edit-savebar");
+      savebar.style.display = "none";
+      savebar.innerHTML =
+        "<span class='edit-count'></span>" +
+        "<button class='edit-btn' data-undo>Undo all</button>" +
+        "<button class='edit-btn edit-btn--primary' data-save>Save texts</button>";
+      document.body.appendChild(savebar);
+      savebar.querySelector("[data-save]").addEventListener("click", saveTexts);
+      savebar.querySelector("[data-undo]").addEventListener("click", function () {
+        Object.keys(dirty).forEach(function (id) {
+          var elx = dirty[id];
+          elx.innerHTML = elx.dataset.editOriginal;
+          elx.classList.remove("edit-dirty");
+        });
+        dirty = {};
+        renderSaveBar();
+      });
+    }
+    savebar.style.display = n ? "flex" : "none";
+    if (n) savebar.querySelector(".edit-count").textContent = n + " change" + (n > 1 ? "s" : "");
+  }
+
+  function saveTexts() {
+    var ids = Object.keys(dirty);
+    if (!ids.length) return;
+    var page = (location.pathname.split("/").pop() || "index.html");
+    if (!/\.html$/.test(page)) page = "index.html";
+    var edits = ids.map(function (id) {
+      return { id: id, html: dirty[id].innerHTML };
+    });
+    var btn = savebar.querySelector("[data-save]");
+    btn.disabled = true; btn.textContent = "Saving\u2026";
+    fetch(TEXT_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: sessionStorage.getItem("skylonEditPw"),
+        page: page,
+        edits: edits,
+      }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false; btn.textContent = "Save texts";
+        if (res.s === 401) {
+          sessionStorage.removeItem("skylonEditPw");
+          alert("Wrong password. Click the logo 5\u00D7 and log in again.");
+          return;
+        }
+        if (!res.j.ok) { alert("Error: " + (res.j.error || "unknown")); return; }
+        ids.forEach(function (id) {
+          dirty[id].dataset.editOriginal = dirty[id].innerHTML;
+          dirty[id].classList.remove("edit-dirty");
+        });
+        dirty = {};
+        renderSaveBar();
+        var ok = el("div", "edit-badge", "Saved \u2713 live in ~1 minute");
+        ok.style.left = "auto"; ok.style.right = "14px"; ok.style.bottom = "64px";
+        document.body.appendChild(ok);
+        setTimeout(function () { ok.remove(); }, 5000);
+      })
+      .catch(function () {
+        btn.disabled = false; btn.textContent = "Save texts";
+        alert("Network error. Try again.");
+      });
   }
 
   function pickFile(img) {

@@ -7,6 +7,8 @@ const SITE_DIR = "skylon-construction-website";
 const PAGE_RE = /^[a-z0-9\-]+\.html$/;
 const GRID_RE = /^[a-z0-9\-]+-g\d+$/;
 const IMG_RE = /^[a-z0-9\-]+-i\d+$/;
+const CARD_RE = /^projects-c\d+$/;
+const CATS = ["residential", "commercial", "refurbishment"];
 const SRC_RE = /^assets\/images\/[a-z0-9][a-z0-9\-\/_.]*\.(webp|jpg|jpeg|png)$/i;
 
 function safeEqual(a, b) {
@@ -101,6 +103,23 @@ function renumberAttr(cloneHtml, fullHtml, slug, attr, pat, fmt) {
     return `${attr}="${slug}-${fmt(max)}"`;
   });
 }
+function renumberDataCard(cloneHtml, fullHtml) {
+  let max = 0;
+  const re = /data-card="projects-c(\d+)"/g;
+  let m;
+  while ((m = re.exec(fullHtml))) max = Math.max(max, parseInt(m[1], 10));
+  return cloneHtml.replace(/data-card="projects-c\d+"/, () => `data-card="projects-c${max + 1}"`);
+}
+function slugify(name) {
+  return "project-" + String(name).toLowerCase()
+    .replace(/&[a-z]+;/g, " ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) + ".html";
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 function renumberDataEdit(cloneHtml, fullHtml, slug) {
   cloneHtml = renumberAttr(cloneHtml, fullHtml, slug, "data-edit", "(\\d{3})",
     function (n) { return String(n).padStart(3, "0"); });
@@ -116,15 +135,16 @@ async function ghGet(api, headers) {
   return r.json();
 }
 async function ghPut(api, headers, message, content, sha) {
+  const payload = {
+    message,
+    content: Buffer.from(content, "utf8").toString("base64"),
+    branch: BRANCH,
+  };
+  if (sha) payload.sha = sha;
   return fetch(api, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      content: Buffer.from(content, "utf8").toString("base64"),
-      branch: BRANCH,
-      sha,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -248,6 +268,107 @@ module.exports = async (req, res) => {
       const newTag = tagMatch[0].replace(/src="[^"]*"/, `src="${src}"`);
       html = html.replace(tagMatch[0], newTag);
       message = `Photo replace via site editor: ${page} (${imgId})`;
+    } else if (body.action === "createCaseStudy" || body.action === "addProject") {
+      const isNew = body.action === "addProject";
+      const cardId = body.card;
+      const name = String(body.name || "").trim().slice(0, 80);
+      const location = String(body.location || "London").trim().slice(0, 60);
+      const category = CATS.includes(body.category) ? body.category : "commercial";
+      if (name.length < 3 || (!isNew && !CARD_RE.test(String(cardId)))) {
+        res.status(400).json({ error: "Bad name/card" });
+        return;
+      }
+      const newSlug = slugify(name);
+      const safeName = escapeHtml(name);
+      const safeLoc = escapeHtml(location);
+      const pageApi = (f) => `https://api.github.com/repos/${REPO}/contents/${encodeURI(SITE_DIR + "/" + f)}`;
+
+      // 1) strona z szablonu (idempotentnie)
+      const exists = await ghGet(pageApi(newSlug), ghHeaders);
+      if (!exists) {
+        const tplMeta = await ghGet(pageApi("project-template.html"), ghHeaders);
+        if (!tplMeta) { res.status(500).json({ error: "Template missing in repo" }); return; }
+        let tpl = Buffer.from(tplMeta.content, "base64").toString("utf8");
+        const newPrefix = newSlug.replace(/\.html$/, "");
+        tpl = tpl.split("project-template").join(newPrefix)
+                 .split("{{NAME}}").join(safeName)
+                 .split("{{LOCATION}}").join(safeLoc)
+                 .split("{{SLUG}}").join(newSlug);
+        const putPage = await ghPut(pageApi(newSlug), ghHeaders,
+          `Case study created via site editor: ${newSlug}`, tpl);
+        if (!putPage.ok) {
+          const d = await putPage.text();
+          res.status(502).json({ error: "Could not create page", detail: d.slice(0, 160) });
+          return;
+        }
+      }
+
+      // 2) karta w siatce
+      if (!isNew) {
+        const tagRe = new RegExp(`<div class="project-card[^"]*"[^>]*data-card="${cardId}"[^>]*>`);
+        const openM = html.match(tagRe);
+        if (openM) {
+          const start = html.indexOf(openM[0]);
+          const block = blockAt(html, start, "div");
+          if (block) {
+            let card = html.slice(block.start, block.end);
+            let openTag = openM[0]
+              .replace(/^<div /, "<a ")
+              .replace(/ data-cat="[^"]*"/, "")
+              .replace(/ data-card="/, ` href="${newSlug}" data-cat="${category}" data-card="`);
+            card = card.replace(openM[0], openTag);
+            card = card.replace(/<span class="video-card__soon"[^>]*>[\s\S]*?<\/span>\s*/, "");
+            card = card.replace(/<\/div>\s*$/, "</a>");
+            html = html.slice(0, block.start) + card + html.slice(block.end);
+            const putGrid = await ghPut(api, ghHeaders,
+              `Case study linked via site editor: ${page} -> ${newSlug}`, html, meta.sha);
+            if (!putGrid.ok) {
+              const d = await putGrid.text();
+              res.status(502).json({ error: "Page created but card update failed, retry", detail: d.slice(0, 160) });
+              return;
+            }
+          }
+        }
+      } else if (!html.includes(`href="${newSlug}"`)) {
+        const region = gridRegion(html, "projects-g1");
+        if (!region) { res.status(404).json({ error: "Projects grid not found" }); return; }
+        const frag = html.slice(region.start, region.end);
+        const cards = topBlocks(frag, "a");
+        if (!cards.length) { res.status(400).json({ error: "No card template" }); return; }
+        let clone = frag.slice(cards[0].start, cards[0].end);
+        clone = clone.replace(/href="[^"]*"/, `href="${newSlug}"`);
+        clone = clone.replace(/data-cat="[^"]*"/, `data-cat="${category}"`);
+        clone = clone.replace(/src="assets\/images\/[^"]+"/, 'src="assets/images/placeholder-photo.webp"');
+        clone = clone.replace(/alt="[^"]*"/, 'alt=""');
+        clone = clone.replace(/(<span class="project-card__cat"[^>]*>)[\s\S]*?(<\/span>)/, `$1${safeLoc}$2`);
+        clone = clone.replace(/(<h3[^>]*>)[\s\S]*?(<\/h3>)/, `$1${safeName}$2`);
+        clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+        clone = renumberDataEdit(clone, html, slug);
+        clone = renumberDataCard(clone, html);
+        const insertAt = region.end - "</div>".length;
+        html = html.slice(0, insertAt) + clone + "\n        " + html.slice(insertAt);
+        const putGrid = await ghPut(api, ghHeaders,
+          `Project card added via site editor: ${newSlug}`, html, meta.sha);
+        if (!putGrid.ok) {
+          const d = await putGrid.text();
+          res.status(502).json({ error: "Page created but card insert failed, retry", detail: d.slice(0, 160) });
+          return;
+        }
+      }
+
+      // 3) sitemap (idempotentnie)
+      const smApi = pageApi("sitemap.xml");
+      const smMeta = await ghGet(smApi, ghHeaders);
+      if (smMeta) {
+        let sm = Buffer.from(smMeta.content, "base64").toString("utf8");
+        if (!sm.includes(newSlug)) {
+          sm = sm.replace("</urlset>",
+            `  <url>\n    <loc>https://www.skylonconstruction.com/${newSlug}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>\n</urlset>`);
+          await ghPut(smApi, ghHeaders, `Sitemap: add ${newSlug}`, sm, smMeta.sha);
+        }
+      }
+      res.status(200).json({ ok: true, slug: newSlug });
+      return;
     } else {
       res.status(400).json({ error: "Unknown action" });
       return;

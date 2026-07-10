@@ -59,6 +59,11 @@
   }
 
   /* ---------- activation: 5 logo clicks ---------- */
+  // auto-wznowienie: zalogowany w tej karcie = tryb edycji na kazdej stronie
+  if (sessionStorage.getItem('skylonEditPw')) {
+    setTimeout(enterEditMode, 0); // po zdefiniowaniu calego modulu
+  }
+
   var clicks = 0, timer = null, navTimer = null;
   var logo = document.querySelector(".brand");
   if (!logo) return;
@@ -134,6 +139,7 @@
 
     initTextEditing();
     initStructure();
+    initCaseStudyCreation();
 
     // w trybie edycji klik w edytowalny tekst wewnatrz linku edytuje, nie nawiguje
     document.addEventListener("click", function (e) {
@@ -213,6 +219,90 @@
       e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid);
     });
     kid.appendChild(tools);
+  }
+
+  /* ---------- case studies: create from card / add new project ---------- */
+  function initCaseStudyCreation() {
+    document.querySelectorAll("[data-grid]").forEach(function (grid) {
+      if (!grid.querySelector("a.project-card, div.project-card")) return;
+      var bar = el("div", "edit-addbar");
+      var btn = el("button", "edit-btn", "+ Add project");
+      btn.type = "button";
+      btn.addEventListener("click", function () { openCreateModal(null); });
+      bar.appendChild(btn);
+      grid.parentElement.insertBefore(bar, grid.nextSibling);
+    });
+
+    document.querySelectorAll('div.project-card[data-card]').forEach(function (card) {
+      var btn = el("button", "edit-btn", "Create case study");
+      btn.type = "button";
+      btn.style.cssText = "position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:70;background:#0D2238;color:#E9EDF1;border-color:#0D2238;padding:13px 22px;font-size:13px;box-shadow:0 10px 26px rgba(5,14,27,.55)";
+      btn.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        openCreateModal(card);
+      });
+      card.style.position = card.style.position || "relative";
+      card.appendChild(btn);
+    });
+  }
+
+  function openCreateModal(card) {
+    var isNew = !card;
+    var h3 = card && card.querySelector("h3");
+    var name = h3 ? h3.textContent.trim() : "";
+    var loc = card && card.querySelector(".project-card__cat");
+    var location = loc ? loc.textContent.trim() : "";
+    var m = modal(
+      "<h3>" + (isNew ? "Add new project" : "Create case study") + "</h3>" +
+      "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Project name</label>" +
+      "<input type='text' class='cs-name' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter;margin-bottom:14px'>" +
+      (isNew ? "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Location (e.g. Camden NW1)</label>" +
+      "<input type='text' class='cs-loc' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter;margin-bottom:14px'>" : "") +
+      "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Category</label>" +
+      "<select class='cs-cat' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter'>" +
+      "<option value='residential'>Residential</option>" +
+      "<option value='commercial' selected>Commercial</option>" +
+      "<option value='refurbishment'>Refurbishment</option></select>" +
+      "<div class='edit-msg cs-state'></div>" +
+      "<div class='edit-modal__row'>" +
+      "<button class='edit-btn' data-x>Cancel</button>" +
+      "<button class='edit-btn edit-btn--primary' data-ok>Create page</button></div>"
+    );
+    var nameInput = m.box.querySelector(".cs-name");
+    nameInput.value = name;
+    m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+    m.box.querySelector("[data-ok]").addEventListener("click", function () {
+      var btn = m.box.querySelector("[data-ok]");
+      var state = m.box.querySelector(".cs-state");
+      btn.disabled = true; btn.textContent = "Creating page…";
+      fetch(STRUCT_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: sessionStorage.getItem("skylonEditPw"),
+          page: pageName,
+          action: isNew ? "addProject" : "createCaseStudy",
+          card: card ? card.getAttribute("data-card") : undefined,
+          name: nameInput.value,
+          category: m.box.querySelector(".cs-cat").value,
+          location: isNew ? (m.box.querySelector(".cs-loc").value || "London") : location,
+        }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) {
+            btn.disabled = false; btn.textContent = "Create page";
+            state.textContent = "Error: " + (j.error || "unknown");
+            return;
+          }
+          state.textContent = "Created. Opening the new page…";
+          setTimeout(function () { window.location.href = j.slug; }, 900);
+        })
+        .catch(function () {
+          btn.disabled = false; btn.textContent = "Create page";
+          state.textContent = "Network error. Try again.";
+        });
+    });
   }
 
   function moveNode(node, dir) {

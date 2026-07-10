@@ -217,6 +217,17 @@
   }
 
   function initCaseStudyCreation() {
+    // "+ Add project" pod siatka projektow
+    document.querySelectorAll("[data-grid]").forEach(function (grid) {
+      if (!grid.querySelector("a.project-card, div.project-card")) return;
+      var bar = el("div", "edit-addbar");
+      var btn = el("button", "edit-btn", "+ Add project");
+      btn.type = "button";
+      btn.addEventListener("click", function () { openCreateModal(null); });
+      bar.appendChild(btn);
+      grid.parentElement.insertBefore(bar, grid.nextSibling);
+    });
+
     document.querySelectorAll('div.project-card[data-card]').forEach(function (card) {
       var btn = el("button", "edit-btn", "Create case study");
       btn.type = "button";
@@ -231,14 +242,17 @@
   }
 
   function openCreateModal(card) {
-    var h3 = card.querySelector("h3");
+    var isNew = !card;
+    var h3 = card && card.querySelector("h3");
     var name = h3 ? h3.textContent.trim() : "";
-    var loc = card.querySelector(".project-card__cat");
-    var location = loc ? loc.textContent.trim() : "London";
+    var loc = card && card.querySelector(".project-card__cat");
+    var location = loc ? loc.textContent.trim() : "";
     var m = modal(
-      "<h3>Create case study</h3>" +
+      "<h3>" + (isNew ? "Add new project" : "Create case study") + "</h3>" +
       "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Project name</label>" +
       "<input type='text' class='cs-name' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter;margin-bottom:14px'>" +
+      (isNew ? "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Location (e.g. Camden NW1)</label>" +
+      "<input type='text' class='cs-loc' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter;margin-bottom:14px'>" : "") +
       "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Category</label>" +
       "<select class='cs-cat' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter'>" +
       "<option value='residential'>Residential</option>" +
@@ -261,11 +275,12 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password: sessionStorage.getItem("skylonEditPw"),
-          page: pageName, action: "createCaseStudy",
-          card: card.getAttribute("data-card"),
+          page: pageName,
+          action: isNew ? "addProject" : "createCaseStudy",
+          card: card ? card.getAttribute("data-card") : undefined,
           name: nameInput.value,
           category: m.box.querySelector(".cs-cat").value,
-          location: location,
+          location: isNew ? (m.box.querySelector(".cs-loc").value || "London") : location,
         }),
       })
         .then(function (r) { return r.json(); })

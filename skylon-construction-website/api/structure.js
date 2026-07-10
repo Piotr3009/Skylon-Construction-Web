@@ -103,6 +103,13 @@ function renumberAttr(cloneHtml, fullHtml, slug, attr, pat, fmt) {
     return `${attr}="${slug}-${fmt(max)}"`;
   });
 }
+function renumberDataCard(cloneHtml, fullHtml) {
+  let max = 0;
+  const re = /data-card="projects-c(\d+)"/g;
+  let m;
+  while ((m = re.exec(fullHtml))) max = Math.max(max, parseInt(m[1], 10));
+  return cloneHtml.replace(/data-card="projects-c\d+"/, () => `data-card="projects-c${max + 1}"`);
+}
 function renumberDataEdit(cloneHtml, fullHtml, slug) {
   cloneHtml = renumberAttr(cloneHtml, fullHtml, slug, "data-edit", "(\\d{3})",
     function (n) { return String(n).padStart(3, "0"); });
@@ -334,6 +341,77 @@ module.exports = async (req, res) => {
         }
       }
 
+      res.status(200).json({ ok: true, slug: newSlug });
+      return;
+    } else if (body.action === "addProject") {
+      const name = String(body.name || "").trim().slice(0, 80);
+      const location = String(body.location || "London").trim().slice(0, 60);
+      const category = CATS.includes(body.category) ? body.category : "commercial";
+      if (name.length < 3) { res.status(400).json({ error: "Name too short" }); return; }
+      const newSlug = slugify(name);
+      const safeName = escapeHtml(name);
+      const safeLoc = escapeHtml(location);
+      const pageApi = (f) => `https://api.github.com/repos/${REPO}/contents/${encodeURI(SITE_DIR + "/" + f)}`;
+
+      // 1) strona z szablonu (idempotentnie)
+      const exists = await ghGet(pageApi(newSlug), ghHeaders);
+      if (!exists) {
+        const tplMeta = await ghGet(pageApi("project-template.html"), ghHeaders);
+        if (!tplMeta) { res.status(500).json({ error: "Template missing in repo" }); return; }
+        let tpl = Buffer.from(tplMeta.content, "base64").toString("utf8");
+        const newPrefix = newSlug.replace(/\.html$/, "");
+        tpl = tpl.split("project-template").join(newPrefix)
+                 .split("{{NAME}}").join(safeName)
+                 .split("{{LOCATION}}").join(safeLoc)
+                 .split("{{SLUG}}").join(newSlug);
+        const putPage = await ghPut(pageApi(newSlug), ghHeaders,
+          `Case study created via site editor: ${newSlug}`, tpl);
+        if (!putPage.ok) {
+          const d = await putPage.text();
+          res.status(502).json({ error: "Could not create page", detail: d.slice(0, 160) });
+          return;
+        }
+      }
+
+      // 2) nowa karta w siatce (klon pierwszej prawdziwej; idempotentnie)
+      if (!html.includes(`href="${newSlug}"`)) {
+        const region = gridRegion(html, "projects-g1");
+        if (!region) { res.status(404).json({ error: "Projects grid not found" }); return; }
+        const frag = html.slice(region.start, region.end);
+        const cards = topBlocks(frag, "a");
+        if (!cards.length) { res.status(400).json({ error: "No card template" }); return; }
+        let clone = frag.slice(cards[0].start, cards[0].end);
+        clone = clone.replace(/href="[^"]*"/, `href="${newSlug}"`);
+        clone = clone.replace(/data-cat="[^"]*"/, `data-cat="${category}"`);
+        clone = clone.replace(/src="assets\/images\/[^"]+"/, 'src="assets/images/placeholder-photo.webp"');
+        clone = clone.replace(/alt="[^"]*"/, 'alt=""');
+        clone = clone.replace(/(<span class="project-card__cat"[^>]*>)[\s\S]*?(<\/span>)/, `$1${safeLoc}$2`);
+        clone = clone.replace(/(<h3[^>]*>)[\s\S]*?(<\/h3>)/, `$1${safeName}$2`);
+        clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+        clone = renumberDataEdit(clone, html, slug);
+        clone = renumberDataCard(clone, html);
+        const insertAt = region.end - "</div>".length;
+        html = html.slice(0, insertAt) + clone + "\n        " + html.slice(insertAt);
+        const putGrid = await ghPut(api, ghHeaders,
+          `Project card added via site editor: ${newSlug}`, html, meta.sha);
+        if (!putGrid.ok) {
+          const d = await putGrid.text();
+          res.status(502).json({ error: "Page created but card insert failed, retry", detail: d.slice(0, 160) });
+          return;
+        }
+      }
+
+      // 3) sitemap (idempotentnie)
+      const smApi = pageApi("sitemap.xml");
+      const smMeta = await ghGet(smApi, ghHeaders);
+      if (smMeta) {
+        let sm = Buffer.from(smMeta.content, "base64").toString("utf8");
+        if (!sm.includes(newSlug)) {
+          sm = sm.replace("</urlset>",
+            `  <url>\n    <loc>https://www.skylonconstruction.com/${newSlug}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>\n</urlset>`);
+          await ghPut(smApi, ghHeaders, `Sitemap: add ${newSlug}`, sm, smMeta.sha);
+        }
+      }
       res.status(200).json({ ok: true, slug: newSlug });
       return;
     } else {

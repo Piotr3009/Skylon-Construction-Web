@@ -7,8 +7,6 @@ const SITE_DIR = "skylon-construction-website";
 const PAGE_RE = /^[a-z0-9\-]+\.html$/;
 const GRID_RE = /^[a-z0-9\-]+-g\d+$/;
 const IMG_RE = /^[a-z0-9\-]+-i\d+$/;
-const CARD_RE = /^projects-c\d+$/;
-const CATS = ["residential", "commercial", "refurbishment"];
 const SRC_RE = /^assets\/images\/[a-z0-9][a-z0-9\-\/_.]*\.(webp|jpg|jpeg|png)$/i;
 
 function safeEqual(a, b) {
@@ -111,17 +109,6 @@ function renumberDataEdit(cloneHtml, fullHtml, slug) {
   return cloneHtml;
 }
 
-function slugify(name) {
-  return "project-" + String(name).toLowerCase()
-    .replace(/&[a-z]+;/g, " ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) + ".html";
-}
-function escapeHtml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
 /* ---------- GitHub io ---------- */
 async function ghGet(api, headers) {
   const r = await fetch(`${api}?ref=${BRANCH}`, { headers });
@@ -129,16 +116,15 @@ async function ghGet(api, headers) {
   return r.json();
 }
 async function ghPut(api, headers, message, content, sha) {
-  const payload = {
-    message,
-    content: Buffer.from(content, "utf8").toString("base64"),
-    branch: BRANCH,
-  };
-  if (sha) payload.sha = sha;
   return fetch(api, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(content, "utf8").toString("base64"),
+      branch: BRANCH,
+      sha,
+    }),
   });
 }
 
@@ -262,80 +248,6 @@ module.exports = async (req, res) => {
       const newTag = tagMatch[0].replace(/src="[^"]*"/, `src="${src}"`);
       html = html.replace(tagMatch[0], newTag);
       message = `Photo replace via site editor: ${page} (${imgId})`;
-    } else if (body.action === "createCaseStudy") {
-      const cardId = body.card;
-      const name = String(body.name || "").trim().slice(0, 80);
-      const location = String(body.location || "London").trim().slice(0, 60);
-      const category = CATS.includes(body.category) ? body.category : "commercial";
-      if (!CARD_RE.test(String(cardId)) || name.length < 3) {
-        res.status(400).json({ error: "Bad card/name" });
-        return;
-      }
-      const newSlug = slugify(name);
-      const safeName = escapeHtml(name);
-      const safeLoc = escapeHtml(location);
-
-      // 1) instancja szablonu -> nowa strona (pomijamy, jesli juz istnieje: wznowienie)
-      const pageApi = (f) => `https://api.github.com/repos/${REPO}/contents/${encodeURI(SITE_DIR + "/" + f)}`;
-      const exists = await ghGet(pageApi(newSlug), ghHeaders);
-      if (!exists) {
-        const tplMeta = await ghGet(pageApi("project-template.html"), ghHeaders);
-        if (!tplMeta) { res.status(500).json({ error: "Template missing in repo" }); return; }
-        let tpl = Buffer.from(tplMeta.content, "base64").toString("utf8");
-        const newPrefix = newSlug.replace(/\.html$/, "");
-        tpl = tpl.split("project-template").join(newPrefix);
-        tpl = tpl.split("{{NAME}}").join(safeName)
-                 .split("{{LOCATION}}").join(safeLoc)
-                 .split("{{SLUG}}").join(newSlug);
-        const putPage = await ghPut(pageApi(newSlug), ghHeaders,
-          `Case study created via site editor: ${newSlug}`, tpl);
-        if (!putPage.ok) {
-          const d = await putPage.text();
-          res.status(502).json({ error: "Could not create page", detail: d.slice(0, 160) });
-          return;
-        }
-      }
-
-      // 2) karta: div "coming soon" -> klikalny link
-      const tagRe = new RegExp(`<div class="project-card[^"]*"[^>]*data-card="${cardId}"[^>]*>`);
-      const openM = html.match(tagRe);
-      if (openM) {
-        const start = html.indexOf(openM[0]);
-        const block = blockAt(html, start, "div");
-        if (block) {
-          let card = html.slice(block.start, block.end);
-          let openTag = openM[0]
-            .replace(/^<div /, "<a ")
-            .replace(/ data-cat="[^"]*"/, "")
-            .replace(/ data-card="/, ` href="${newSlug}" data-cat="${category}" data-card="`);
-          card = card.replace(openM[0], openTag);
-          card = card.replace(/<span class="video-card__soon"[^>]*>[\s\S]*?<\/span>\s*/, "");
-          card = card.replace(/<\/div>\s*$/, "</a>");
-          html = html.slice(0, block.start) + card + html.slice(block.end);
-          message = `Case study linked via site editor: ${page} -> ${newSlug}`;
-          const putGrid = await ghPut(api, ghHeaders, message, html, meta.sha);
-          if (!putGrid.ok) {
-            const d = await putGrid.text();
-            res.status(502).json({ error: "Page created but card update failed, retry", detail: d.slice(0, 160) });
-            return;
-          }
-        }
-      }
-
-      // 3) sitemap
-      const smApi = pageApi("sitemap.xml");
-      const smMeta = await ghGet(smApi, ghHeaders);
-      if (smMeta) {
-        let sm = Buffer.from(smMeta.content, "base64").toString("utf8");
-        if (!sm.includes(newSlug)) {
-          sm = sm.replace("</urlset>",
-            `  <url>\n    <loc>https://www.skylonconstruction.com/${newSlug}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>\n</urlset>`);
-          await ghPut(smApi, ghHeaders, `Sitemap: add ${newSlug}`, sm, smMeta.sha);
-        }
-      }
-
-      res.status(200).json({ ok: true, slug: newSlug });
-      return;
     } else {
       res.status(400).json({ error: "Unknown action" });
       return;

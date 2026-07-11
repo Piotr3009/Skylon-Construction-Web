@@ -36,6 +36,7 @@
 
     { "source": "/post/:slug*", "destination": "/blog.html", "permanent": true },
     { "source": "/blog/:path*", "destination": "/blog.html", "permanent": true },
+    { "source": "/service-page/:path*", "destination": "/contact.html", "permanent": true },
     { "source": "/projects-:num", "destination": "/projects.html", "permanent": true },
     { "source": "/pl", "destination": "/", "permanent": true },
     { "source": "/pl/:path*", "destination": "/", "permanent": true },

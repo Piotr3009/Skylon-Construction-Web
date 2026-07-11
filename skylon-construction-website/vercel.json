@@ -32,6 +32,12 @@
     { "source": "/1aturnerroad", "destination": "/projects.html", "permanent": true },
     { "source": "/2nivedaclose", "destination": "/projects.html", "permanent": true },
     { "source": "/55stjohnstreet", "destination": "/projects.html", "permanent": true },
-    { "source": "/9hawesroad", "destination": "/projects.html", "permanent": true }
+    { "source": "/9hawesroad", "destination": "/projects.html", "permanent": true },
+
+    { "source": "/post/:slug*", "destination": "/blog.html", "permanent": true },
+    { "source": "/pl", "destination": "/", "permanent": true },
+    { "source": "/pl/:path*", "destination": "/", "permanent": true },
+    { "source": "/en", "destination": "/", "permanent": true },
+    { "source": "/en/:path*", "destination": "/", "permanent": true }
   ]
 }

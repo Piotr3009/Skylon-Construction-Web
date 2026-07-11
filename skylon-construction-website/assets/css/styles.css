@@ -1747,3 +1747,112 @@ body.lightbox-open { overflow: hidden; }
   .btn-row .btn { width: 100%; }
   .lightbox__prev, .lightbox__next { width: 44px; height: 44px; }
 }
+/* ============================================================
+   LOCATION PAGES  (added for local landing pages)
+   ============================================================ */
+
+/* Case-study mini cards */
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+.mini-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1.5rem 1.3rem;
+  border: 1px solid var(--line-light);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  transition: border-color var(--t), transform var(--t), box-shadow var(--t);
+}
+.mini-card:hover {
+  border-color: var(--silver-400);
+  transform: translateY(-3px);
+}
+.mini-card__value {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.mini-card__name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--silver-600);
+}
+.mini-card p {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.section--dark .mini-card,
+.on-dark .mini-card {
+  background: rgba(13, 34, 56, 0.35);
+  border-color: var(--line-dark);
+}
+.on-dark .mini-card__value { color: var(--silver-050); }
+.on-dark .mini-card p { color: var(--mist); }
+
+/* Nearby areas link row */
+.area-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.75rem;
+  margin: 1.6rem 0 1.4rem;
+}
+.area-links a {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  color: var(--silver-200);
+  border: 1px solid var(--line-dark);
+  border-radius: 999px;
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+.area-links a:hover {
+  color: var(--white);
+  border-color: var(--silver-400);
+  background: rgba(13, 34, 56, 0.5);
+}
+
+/* Footer: Areas We Cover (expandable) */
+.footer__areas {
+  border-top: 1px solid var(--line-dark);
+  padding-block: 1.1rem;
+}
+.footer__areas summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--silver-300);
+  transition: color var(--t-fast);
+}
+.footer__areas summary::-webkit-details-marker { display: none; }
+.footer__areas summary::after {
+  content: "+";
+  margin-left: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.footer__areas[open] summary::after { content: "\2212"; }
+.footer__areas summary:hover { color: var(--white); }
+.footer__areas-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.4rem;
+  padding-top: 1rem;
+}
+.footer__areas-links a {
+  font-size: 0.92rem;
+  color: var(--mist-soft);
+  transition: color var(--t-fast);
+}
+.footer__areas-links a:hover { color: var(--silver-100); }

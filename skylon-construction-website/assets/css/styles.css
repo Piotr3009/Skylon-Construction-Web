@@ -900,7 +900,7 @@ html:not(.js) .hero__inner > * { opacity: 1; transform: none; }
 /* 14. SKYLON GROUP BAND ---------------------------------------------------- */
 .group-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1.2rem;
 }
 .group-card {
@@ -1878,4 +1878,75 @@ body.lightbox-open { overflow: hidden; }
       rgba(5, 14, 27, 0.10) 0%,
       rgba(5, 14, 27, 0.16) 45%,
       rgba(5, 14, 27, 0.72) 100%);
+}
+
+/* ============================================================
+   HEADER: three phone numbers, stacked
+   ============================================================ */
+.header__phones {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.header__phones > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--silver-300);
+}
+.header__phones-list {
+  display: grid;
+  gap: 0.1rem;
+}
+.header__phones-list a {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  line-height: 1.45;
+  color: var(--silver-200);
+  white-space: nowrap;
+  transition: color var(--t-fast);
+}
+.header__phones-list a:hover { color: var(--white); }
+
+.nav__mobile-meta .header__phones { margin-bottom: 1.1rem; }
+
+/* ============================================================
+   HOME: opening statement runs full width
+   ============================================================ */
+.section-head--wide { max-width: none; }
+.statement--wide {
+  max-width: none;
+  font-size: clamp(1.85rem, 3.9vw, 3.15rem);
+  line-height: 1.24;
+}
+
+/* ============================================================
+   PROJECT CARDS: lighter scrim so the photography reads
+   The gradient only needs to carry the caption at the very bottom.
+   ============================================================ */
+.project-card::after {
+  background: linear-gradient(180deg,
+    transparent 52%,
+    rgba(5, 14, 27, 0.30) 70%,
+    rgba(5, 14, 27, 0.86) 100%);
+}
+
+/* Contact: phone list with the person next to each number */
+.contact-phones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.contact-phones li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.contact-phones__who {
+  font-size: 0.85em;
+  color: var(--silver-600);
 }

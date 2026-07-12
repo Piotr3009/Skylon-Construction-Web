@@ -231,6 +231,12 @@ module.exports = async (req, res) => {
       clone = clone.replace(/src="assets\/images\/[^"]+"/, `src="${src}"`);
       clone = clone.replace(/alt="[^"]*"/, `alt="${alt}"`);
       clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+      // Fields marked data-blank start fresh in the clone, so a new person card
+      // does not arrive carrying the first person's name and role.
+      clone = clone.replace(
+        /(<([a-z0-9]+)\b[^>]*\bdata-blank="([^"]*)"[^>]*>)[\s\S]*?(<\/\2>)/gi,
+        function (_m, open, _tag, txt, close) { return open + txt + close; }
+      );
       clone = clone.replace(/(<figcaption\b[^>]*>)[\s\S]*?(<\/figcaption>)/, "$1$2");
       clone = clone.replace(/<span class="masonry__caption">[\s\S]*?<\/strong>\s*<\/span>/, "");
       clone = clone.replace(/aria-label="[^"]*"/, 'aria-label="View larger"');

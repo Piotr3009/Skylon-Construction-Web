@@ -124,6 +124,11 @@
     imgs.forEach(function (img) {
       if (img.closest(".site-header") || img.closest(".footer")) return; // logos stay safe
       var holder = img.parentElement;
+      // Hero media layers sit behind everything (z-index:-2), so a button placed
+      // inside one is invisible and unclickable. Hang the pencil off the section.
+      if (holder.classList.contains("page-hero__media") || holder.classList.contains("hero__media")) {
+        holder = holder.closest("section") || holder;
+      }
       holder.classList.add("edit-wrap");
       var b = el("button", "edit-pencil");
       b.type = "button";

@@ -1860,3 +1860,22 @@ body.lightbox-open { overflow: hidden; }
 /* Hero photo framing: keeps the subject visible when the image is cropped on
    narrow screens. Used where the building sits off-centre in the photo. */
 .page-hero__media img.pos-right { object-position: 72% center; }
+
+/* ============================================================
+   HOME HERO VEIL
+   The photo loop was being crushed by the standard dark veil.
+   Lighter overall wash, plus a soft halo behind the wordmark so the
+   silver logo stays legible on the brightest frames of the loop.
+   Scoped to .hero--brand (home page only). Interior heroes unchanged.
+   ============================================================ */
+.hero--brand::before {
+  background:
+    radial-gradient(ellipse 34% 26% at 50% 44%,
+      rgba(5, 14, 27, 0.50) 0%,
+      rgba(5, 14, 27, 0.28) 45%,
+      rgba(5, 14, 27, 0) 72%),
+    linear-gradient(180deg,
+      rgba(5, 14, 27, 0.10) 0%,
+      rgba(5, 14, 27, 0.16) 45%,
+      rgba(5, 14, 27, 0.72) 100%);
+}

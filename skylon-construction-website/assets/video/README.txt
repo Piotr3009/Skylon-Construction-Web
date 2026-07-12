@@ -1,10 +1,16 @@
-HERO VIDEO — drop your file here as:  hero-loop.mp4
+HERO LOOP
+=========
+Photo-based loop built from 17 real Skylon project photographs.
 
-Recommended spec:
-- 10–25 s, seamless loop, NO audio track (or it will be muted anyway)
-- 1920x1080 (or 2560x1440), H.264 MP4
-- under 8 MB (compress: handbrake.fr, preset "Web > Vimeo YouTube 1080p", RF ~26)
-- calm footage: site work, joinery close-ups, slow pans
+Spec:
+  1440x810, 20fps, H.264, no audio
+  20.6s, seamless loop (last frame matches first frame)
+  Slow Ken Burns zoom on each photo, cross-dissolve between them
+  No dark or black frames at any point
 
-Until the file exists, the site automatically shows the poster image
-(assets/images/hero-construction.jpg) — nothing breaks.
+To replace:
+  Overwrite this file (hero-loop.mp4) and update the poster frame at
+  assets/images/hero-poster.jpg so the poster matches the first frame.
+
+Previous version was a clip from the Brecknock Road film. It was replaced
+because the final 4.5 seconds of every loop faded to a fully black screen.

@@ -160,13 +160,20 @@
       </div>
     </section>
 
-    <!-- ============================ VALUES ============================ -->
+    <!-- ============================ STORY BLOCKS ============================
+         Repeatable. In edit mode, "+ Add block" clones the block below:
+         a photo plus its own heading, text and list. Blocks stack downwards,
+         they never spread sideways, so the layout cannot break.
+         ================================================================== -->
     <section class="section">
-      <div class="container split split--reverse">
-        <figure class="split__media reveal">
-          <img src="assets/images/uploads/about-i2-1783695513411.webp" alt="Skylon site team reviewing drawings on site" loading="lazy" data-img="about-i2">
-        </figure>
-        <div class="split__body reveal" style="--i:1">
+      <div class="container">
+        <div class="story-stack" data-grid="about-g3" data-add-label="+ Add block">
+          <figure class="story-block reveal">
+            <div class="story-block__media">
+              <img src="assets/images/uploads/about-i2-1783695513411.webp" alt="Skylon site team reviewing drawings on site" loading="lazy" data-img="about-i2">
+            </div>
+            <figcaption class="story-block__body">
+
           <p class="eyebrow" data-edit="about-021">The people</p>
           <h2 data-edit="about-022">Experienced leadership.&nbsp; Exceptional delivery.</h2>
           <p class="lead" data-edit="about-023">You will know the people building your project by name, and they will know your drawings by heart.</p>
@@ -176,6 +183,8 @@
             <li data-edit="about-026"><strong>Site managers who sweat details.</strong> The shadow gap, the mitre, the margin, checked before you ever see them.</li>
           </ul>
           <a class="btn btn--navy" href="contact.html">Meet Us on Site</a>
+            </figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -188,16 +197,79 @@
           <h2 data-edit="about-028">Names you&rsquo;ll actually <em>deal with</em></h2>
           <p class="lead" data-edit="about-029">No account managers, no call centres, the people below run your project, and you’ll know them by name.</p>
         </div>
-        <!-- TODO: verify role pairing for office team (source PDF layout ambiguous) + add portrait photos -->
-        <div class="grid grid--4" data-grid="about-g2">
-          <article class="service-card reveal" style="--i:0"><h3 data-edit="about-030">Piotr <br>Tarasek</h3><p data-edit="about-031">Director</p></article>
-          <article class="service-card reveal" style="--i:1"><h3 data-edit="about-032">Izabela <br>Tarasek</h3><p data-edit="about-033">Office &amp; Finance Manager</p></article>
-          <article class="service-card reveal" style="--i:2"><h3 data-edit="about-034">Sandra<br>&nbsp;Jaros</h3><p data-edit="about-035">Project Coordinator</p></article>
-          <article class="service-card reveal" style="--i:3"><h3 data-edit="about-036">Michael Koutsoudakis</h3><p data-edit="about-037">Project Coordinator</p></article>
-          <article class="service-card reveal" style="--i:4"><h3 data-edit="about-038">Tomasz <br>Sadek</h3><p data-edit="about-039">Project Coordinator</p></article>
-          <article class="service-card reveal" style="--i:6"><h3 data-edit="about-042">Wiktoria Kozlowska</h3><p data-edit="about-043">Project Coordinator</p></article>
-          <article class="service-card reveal" style="--i:5"><h3 data-edit="about-040">Klaudia <br>Marc</h3><p data-edit="about-041">Office Administrator</p></article>
-          <article class="service-card reveal" style="--i:7"><h3 data-edit="about-044">Karol Gburczyk &amp; Marcin Ziolo&nbsp;</h3><p data-edit="about-045">Site Managers</p></article>
+        <div class="grid grid--4 person-grid" data-grid="about-g2" data-add-label="+ Add person">
+          <figure class="person-card reveal" style="--i:0">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Piotr Tarasek, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p1">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-030">Piotr <br>Tarasek</h3>
+              <p data-edit="about-031">Director</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:1">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Izabela Tarasek, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p2">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-032">Izabela <br>Tarasek</h3>
+              <p data-edit="about-033">Office &amp; Finance Manager</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:2">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Sandra Jaros, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p3">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-034">Sandra<br>&nbsp;Jaros</h3>
+              <p data-edit="about-035">Project Coordinator</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:3">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Michael Koutsoudakis, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p4">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-036">Michael Koutsoudakis</h3>
+              <p data-edit="about-037">Project Coordinator</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:4">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Tomasz Sadek, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p5">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-038">Tomasz <br>Sadek</h3>
+              <p data-edit="about-039">Project Coordinator</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:5">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Klaudia Marc, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p6">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-040">Klaudia <br>Marc</h3>
+              <p data-edit="about-041">Office Administrator</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:6">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Wiktoria Kozlowska, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p7">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-042">Wiktoria Kozlowska</h3>
+              <p data-edit="about-043">Project Coordinator</p>
+            </figcaption>
+          </figure>
+          <figure class="person-card reveal" style="--i:7">
+            <div class="person-card__media">
+              <img src="assets/images/placeholder-photo.webp" alt="Karol Gburczyk &amp; Marcin Ziolo, Skylon Construction" width="800" height="800" loading="lazy" data-img="about-p8">
+            </div>
+            <figcaption class="person-card__body">
+              <h3 data-edit="about-044">Karol Gburczyk &amp; Marcin Ziolo&nbsp;</h3>
+              <p data-edit="about-045">Site Managers</p>
+            </figcaption>
+          </figure>
         </div>
       </div>
     </section>

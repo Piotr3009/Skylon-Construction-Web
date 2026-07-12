@@ -140,6 +140,8 @@
     initTextEditing();
     initStructure();
     initCaseStudyCreation();
+    initBlogCreation();
+    initLinkEditing();
 
     // w trybie edycji klik w edytowalny tekst wewnatrz linku edytuje, nie nawiguje
     document.addEventListener("click", function (e) {
@@ -192,7 +194,8 @@
       // Add photos tylko dla siatek figur
       if (kids.length && /^(FIGURE|BUTTON)$/.test(kids[0].tagName) && kids[0].querySelector("img")) {
         var bar = el("div", "edit-addbar");
-        var btn = el("button", "edit-btn", "+ Add photos");
+        var label = grid.getAttribute("data-add-label") || "+ Add photos";
+        var btn = el("button", "edit-btn", label);
         btn.type = "button";
         btn.addEventListener("click", function () { addPhotos(grid); });
         bar.appendChild(btn);
@@ -219,6 +222,202 @@
       e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid);
     });
     kid.appendChild(tools);
+  }
+
+  /* ---------- links: edit the URL behind a logo ---------- */
+  var LINK_API = "/api/structure";
+
+  function initLinkEditing() {
+    document.querySelectorAll("a[data-link]").forEach(function (a) {
+      a.addEventListener("click", function (e) { e.preventDefault(); });
+      var host = a.parentElement;
+      host.style.position = host.style.position || "relative";
+      var btn = el("button", "edit-mini edit-mini--link", "\u{1F517}");
+      btn.type = "button";
+      btn.title = "Set link";
+      btn.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        openLinkModal(a);
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  function openLinkModal(a) {
+    var id = a.getAttribute("data-link");
+    var current = a.getAttribute("href") || "";
+    if (current === "#") current = "";
+
+    var m = modal(
+      "<h3>Link for this logo</h3>" +
+      "<p style='font:400 13.5px/1.5 Inter;color:#5B6B7C;margin:0 0 12px'>Paste the full website address. Leave it empty if the logo should not be clickable.</p>" +
+      "<input type='url' class='lk-url' placeholder='https://example.co.uk' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter'>" +
+      "<div class='edit-msg lk-state'></div>" +
+      "<div class='edit-modal__row'>" +
+      "<button class='edit-btn' data-x>Cancel</button>" +
+      "<button class='edit-btn edit-btn--primary' data-ok>Save link</button></div>"
+    );
+    var input = m.box.querySelector(".lk-url");
+    input.value = current;
+
+    m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+    m.box.querySelector("[data-ok]").addEventListener("click", function () {
+      var btn = m.box.querySelector("[data-ok]");
+      var state = m.box.querySelector(".lk-state");
+      var url = input.value.trim();
+      if (url && !/^https?:\/\//i.test(url)) {
+        state.textContent = "The address must start with https://";
+        return;
+      }
+      btn.disabled = true; btn.textContent = "Saving\u2026";
+      fetch(LINK_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: sessionStorage.getItem("skylonEditPw"),
+          page: pageName,
+          action: "setLink",
+          link: id,
+          href: url || "#",
+        }),
+      })
+        .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+        .then(function (res) {
+          if (res.s !== 200 || !res.j.ok) {
+            state.textContent = "Error: " + (res.j.error || res.s);
+            btn.disabled = false; btn.textContent = "Save link";
+            return;
+          }
+          a.setAttribute("href", url || "#");
+          m.root.remove();
+          flash("Link saved \u2713 live in ~1 minute");
+        })
+        .catch(function () {
+          state.textContent = "Network error. Try again.";
+          btn.disabled = false; btn.textContent = "Save link";
+        });
+    });
+  }
+
+  /* ---------- journal: create a new article ---------- */
+  function initBlogCreation() {
+    var grid = document.querySelector('[data-grid="blog-g1"]');
+    if (!grid) return;
+    var bar = el("div", "edit-addbar");
+    var btn = el("button", "edit-btn edit-btn--primary", "+ New journal post");
+    btn.type = "button";
+    btn.addEventListener("click", openBlogModal);
+    bar.appendChild(btn);
+    grid.parentElement.insertBefore(bar, grid.nextSibling);
+  }
+
+  function existingPostTitles() {
+    var out = [];
+    document.querySelectorAll('[data-grid="blog-g1"] .post-card h3').forEach(function (h) {
+      var t = h.textContent.trim();
+      if (t) out.push(t);
+    });
+    return out;
+  }
+
+  function openBlogModal() {
+    var titles = existingPostTitles();
+    var already = titles.length
+      ? "<div class='blog-already'><strong>Already published, do not repeat these:</strong><br>" +
+        titles.map(function (t) { return "&bull; " + t; }).join("<br>") + "</div>"
+      : "";
+
+    var m = modal(
+      "<h3>New journal post</h3>" +
+
+      "<div class='blog-rules'>" +
+      "<p class='blog-rules__lead'>Read this before you write. It takes one minute and it decides whether the article works.</p>" +
+
+      "<p class='blog-rules__h'>How often</p>" +
+      "<p>Once every two weeks. Not weekly. Two strong articles a month beat eight thin ones, and a blog that dies after two months looks worse than no blog at all.</p>" +
+
+      "<p class='blog-rules__h'>How long</p>" +
+      "<p>600 to 800 words minimum. Anything shorter, Google treats as thin content and ignores. If you cannot get to 600 words, the subject is too small. Pick a bigger one.</p>" +
+
+      "<p class='blog-rules__h'>What to write about</p>" +
+      "<p>Write what people actually type into Google. Three things work:</p>" +
+      "<p>1. <strong>Questions clients really ask you.</strong> How long does an extension take? Do I need permission in the Green Belt? Why do builders quote such different prices?</p>" +
+      "<p>2. <strong>Local planning knowledge.</strong> What Hertsmere allows in Radlett. What St Albans conservation officers look for. This is the knowledge our competitors do not have, and it is why our local pages exist.</p>" +
+      "<p>3. <strong>Real stories from real sites.</strong> What went wrong, what it cost, how it was fixed. People read the truth. They skip the marketing.</p>" +
+
+      "<p class='blog-rules__h'>What not to write</p>" +
+      "<p>No company news, no awards, no general trend lists. Nobody searches for those. Never publish AI text without reading and rewriting it yourself. And never write a second article on a subject we have already covered: the two will compete against each other in Google and both will lose.</p>" +
+
+      "<p class='blog-rules__h'>Be specific</p>" +
+      "<p>Name the council. Name the rule. Give the real number, the real timescale, the real cost. Vague writing helps nobody and Google ranks it accordingly.</p>" +
+      already +
+      "</div>" +
+
+      "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin:16px 0 6px'>Article title</label>" +
+      "<input type='text' class='bp-title' placeholder='e.g. Do I need planning permission for an extension in Radlett?' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter;margin-bottom:14px'>" +
+
+      "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>One-line summary (shown on the card and in Google)</label>" +
+      "<input type='text' class='bp-intro' maxlength='160' placeholder='One sentence. Max 160 characters.' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter;margin-bottom:14px'>" +
+
+      "<label style='font:600 12px Inter;letter-spacing:.06em;display:block;margin-bottom:6px'>Category</label>" +
+      "<select class='bp-cat' style='width:100%;padding:13px 14px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter'>" +
+      "<option value='Planning'>Planning</option>" +
+      "<option value='Costs'>Costs</option>" +
+      "<option value='Craft'>Craft</option>" +
+      "<option value='On site'>On site</option>" +
+      "<option value='Refurbishment'>Refurbishment</option>" +
+      "<option value='Local'>Local</option>" +
+      "</select>" +
+
+      "<div class='edit-msg bp-state'></div>" +
+      "<div class='edit-modal__row'>" +
+      "<button class='edit-btn' data-x>Cancel</button>" +
+      "<button class='edit-btn edit-btn--primary' data-ok>Create post</button></div>"
+    );
+
+    m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+    m.box.querySelector("[data-ok]").addEventListener("click", function () {
+      var btn = m.box.querySelector("[data-ok]");
+      var state = m.box.querySelector(".bp-state");
+      var title = m.box.querySelector(".bp-title").value.trim();
+      var intro = m.box.querySelector(".bp-intro").value.trim();
+      var cat = m.box.querySelector(".bp-cat").value;
+
+      if (title.length < 8) { state.textContent = "Give the article a real title first."; return; }
+      var clash = existingPostTitles().some(function (t) {
+        return t.toLowerCase() === title.toLowerCase();
+      });
+      if (clash) { state.textContent = "An article with that title already exists."; return; }
+
+      btn.disabled = true; btn.textContent = "Creating post\u2026";
+      fetch(STRUCT_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: sessionStorage.getItem("skylonEditPw"),
+          page: pageName,
+          action: "createBlogPost",
+          title: title,
+          intro: intro,
+          category: cat,
+        }),
+      })
+        .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+        .then(function (res) {
+          if (res.s !== 200 || !res.j.ok) {
+            state.textContent = "Error: " + (res.j.error || res.s);
+            btn.disabled = false; btn.textContent = "Create post";
+            return;
+          }
+          state.textContent = "Post created. It will be live in about a minute. Open it and write the article.";
+          btn.textContent = "Done \u2713";
+          setTimeout(function () { m.root.remove(); flash("Journal post created \u2713"); }, 2600);
+        })
+        .catch(function () {
+          state.textContent = "Network error. Try again.";
+          btn.disabled = false; btn.textContent = "Create post";
+        });
+    });
   }
 
   /* ---------- case studies: create from card / add new project ---------- */
@@ -484,7 +683,6 @@
       el.setAttribute("spellcheck", "false");
       el.dataset.editOriginal = el.innerHTML;
       el.addEventListener("input", function () {
-        dashJoke(el);
         var id = el.getAttribute("data-edit");
         if (el.innerHTML !== el.dataset.editOriginal) {
           dirty[id] = el;
@@ -504,18 +702,6 @@
       });
     });
     renderSaveBar();
-  }
-
-  var lastJoke = 0;
-  function dashJoke(elx) {
-    if (!/[\u2014\u2013]|[\s\u00A0]-{1,2}[\s\u00A0]/.test(elx.innerText)) return;
-    var now = Date.now();
-    if (now - lastJoke < 10000) return;
-    lastJoke = now;
-    var toast = el("div", "edit-toast",
-      "Prosz\u0119 usun\u0105\u0107 my\u015Blniki.<br><span style='font-weight:400;font-size:14px;color:#C9BFA6'>Specjalne polecenie Izabeli \u{1F609}</span>");
-    document.body.appendChild(toast);
-    setTimeout(function () { toast.remove(); }, 4200);
   }
 
   var savebar = null;

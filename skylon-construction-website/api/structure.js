@@ -369,6 +369,120 @@ module.exports = async (req, res) => {
       }
       res.status(200).json({ ok: true, slug: newSlug });
       return;
+    } else if (body.action === "setLink") {
+      // -------- ADRES POD LOGO --------
+      const linkId = String(body.link || "");
+      let href = String(body.href || "#").trim();
+      if (!/^[a-z0-9-]+$/i.test(linkId.replace(/-/g, "-"))) {
+        res.status(400).json({ error: "Bad link id" });
+        return;
+      }
+      if (href !== "#" && !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(href)) {
+        res.status(400).json({ error: "Link must be a full https:// address" });
+        return;
+      }
+      href = href.replace(/["<>]/g, "");
+      const re = new RegExp(
+        `(<a\\b[^>]*data-link="${linkId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>)`
+      );
+      const hit = html.match(re);
+      if (!hit) { res.status(404).json({ error: "Link slot not found" }); return; }
+      let openTag = hit[1];
+      openTag = /href="/.test(openTag)
+        ? openTag.replace(/href="[^"]*"/, `href="${href}"`)
+        : openTag.replace(/^<a /, `<a href="${href}" `);
+      html = html.replace(hit[1], openTag);
+      message = `Link updated via site editor: ${page} (${linkId})`;
+    } else if (body.action === "createBlogPost") {
+      // -------- NOWY WPIS NA BLOGU --------
+      const title = String(body.title || "").trim().slice(0, 110);
+      const category = String(body.category || "Craft").trim().slice(0, 30).replace(/[<>"]/g, "");
+      const intro = String(body.intro || "").trim().slice(0, 160).replace(/[<>"]/g, "");
+      if (title.length < 8) {
+        res.status(400).json({ error: "Title must be at least 8 characters" });
+        return;
+      }
+
+      const postSlug = slugify(title);
+      const safeTitle = escapeHtml(title);
+      const safeCat = escapeHtml(category);
+      const safeIntro = escapeHtml(intro || title);
+      const today = new Date().toLocaleDateString("en-GB", {
+        day: "numeric", month: "long", year: "numeric",
+      });
+      const blogApi = (f) =>
+        `https://api.github.com/repos/${REPO}/contents/${encodeURI(SITE_DIR + "/" + f)}`;
+
+      // 1) strona z szablonu (idempotentnie)
+      const already = await ghGet(blogApi(postSlug), ghHeaders);
+      if (!already) {
+        const tplMeta = await ghGet(blogApi("blog-template.html"), ghHeaders);
+        if (!tplMeta) {
+          res.status(500).json({ error: "blog-template.html missing in repo" });
+          return;
+        }
+        let tpl = Buffer.from(tplMeta.content, "base64").toString("utf8");
+        const newPrefix = postSlug.replace(/\.html$/, "");
+        tpl = tpl.split("blog-template").join(newPrefix)
+                 .split("{{TITLE}}").join(safeTitle)
+                 .split("{{CATEGORY}}").join(safeCat)
+                 .split("{{INTRO}}").join(safeIntro)
+                 .split("{{DATE}}").join(today)
+                 .split("{{SLUG}}").join(postSlug);
+        const putPost = await ghPut(blogApi(postSlug), ghHeaders,
+          `Journal post created via site editor: ${postSlug}`, tpl);
+        if (!putPost.ok) {
+          const d = await putPost.text();
+          res.status(502).json({ error: "Could not create post page", detail: d.slice(0, 160) });
+          return;
+        }
+      }
+
+      // 2) kafelek na blog.html
+      if (!html.includes(`href="${postSlug}"`)) {
+        const region = gridRegion(html, "blog-g1");
+        if (!region) { res.status(404).json({ error: "Journal grid not found" }); return; }
+        const frag = html.slice(region.start, region.end);
+        const cards = topBlocks(frag, "a");
+        if (!cards.length) { res.status(400).json({ error: "No post card template" }); return; }
+        let clone = frag.slice(cards[0].start, cards[0].end);
+        clone = clone.replace(/href="[^"]*"/, `href="${postSlug}"`);
+        clone = clone.replace(/src="assets\/images\/[^"]+"/, 'src="assets/images/placeholder-photo.webp"');
+        clone = clone.replace(/alt="[^"]*"/, 'alt=""');
+        clone = clone.replace(
+          /(<span class="post-card__meta">)[\s\S]*?(<\/span>\s*<\/span>|<\/span>)/,
+          `$1<span>${safeCat}</span><span>${today}</span></span>`
+        );
+        clone = clone.replace(/(<h3[^>]*>)[\s\S]*?(<\/h3>)/, `$1${safeTitle}$2`);
+        clone = clone.replace(/(<p[^>]*>)[\s\S]*?(<\/p>)/, `$1${safeIntro}$2`);
+        clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+        clone = renumberDataEdit(clone, html, slug);
+        // nowy wpis na poczatek listy (najnowsze u gory)
+        const insertAt = region.start + cards[0].start;
+        html = html.slice(0, insertAt) + clone + "\n          " + html.slice(insertAt);
+        const putGrid = await ghPut(api, ghHeaders,
+          `Journal card added via site editor: ${postSlug}`, html, meta.sha);
+        if (!putGrid.ok) {
+          const d = await putGrid.text();
+          res.status(502).json({ error: "Post created but card insert failed, retry", detail: d.slice(0, 160) });
+          return;
+        }
+      }
+
+      // 3) sitemap (idempotentnie)
+      const smApi2 = blogApi("sitemap.xml");
+      const smMeta2 = await ghGet(smApi2, ghHeaders);
+      if (smMeta2) {
+        let sm2 = Buffer.from(smMeta2.content, "base64").toString("utf8");
+        if (!sm2.includes(postSlug)) {
+          sm2 = sm2.replace("</urlset>",
+            `  <url>\n    <loc>https://www.skylonconstruction.com/${postSlug}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>\n</urlset>`);
+          await ghPut(smApi2, ghHeaders, `Sitemap: add ${postSlug}`, sm2, smMeta2.sha);
+        }
+      }
+
+      res.status(200).json({ ok: true, slug: postSlug });
+      return;
     } else {
       res.status(400).json({ error: "Unknown action" });
       return;

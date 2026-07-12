@@ -1856,3 +1856,7 @@ body.lightbox-open { overflow: hidden; }
   transition: color var(--t-fast);
 }
 .footer__areas-links a:hover { color: var(--silver-100); }
+
+/* Hero photo framing: keeps the subject visible when the image is cropped on
+   narrow screens. Used where the building sits off-centre in the photo. */
+.page-hero__media img.pos-right { object-position: 72% center; }

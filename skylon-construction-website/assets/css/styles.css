@@ -2157,3 +2157,35 @@ body.lightbox-open { overflow: hidden; }
   z-index: 130;
 }
 .hero > .edit-pencil { z-index: 130; }
+
+/* ============================================================
+   INTERIOR HERO VEIL
+   The standard veil crushed the photography. The heading, breadcrumb and
+   eyebrow all sit on the left, so only the left needs shading. The right
+   half of the photograph is left to breathe.
+   ============================================================ */
+.page-hero--image::before {
+  background:
+    linear-gradient(90deg,
+      rgba(5, 14, 27, 0.64) 0%,
+      rgba(5, 14, 27, 0.42) 20%,
+      rgba(5, 14, 27, 0.22) 38%,
+      rgba(5, 14, 27, 0.08) 52%,
+      rgba(5, 14, 27, 0.06) 62%,
+      rgba(5, 14, 27, 0.06) 100%),
+    linear-gradient(180deg,
+      rgba(5, 14, 27, 0) 55%,
+      rgba(5, 14, 27, 0.14) 78%,
+      rgba(5, 14, 27, 0.38) 100%);
+}
+
+/* On a narrow screen the text runs the full width, so a left-only wash is not
+   enough. Fall back to a vertical veil, still lighter than the old one. */
+@media (max-width: 900px) {
+  .page-hero--image::before {
+    background: linear-gradient(180deg,
+      rgba(5, 14, 27, 0.26) 0%,
+      rgba(5, 14, 27, 0.38) 45%,
+      rgba(5, 14, 27, 0.80) 100%);
+  }
+}

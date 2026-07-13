@@ -2144,3 +2144,16 @@ body.lightbox-open { overflow: hidden; }
   .story-block { grid-template-columns: 1fr; }
   .story-block:nth-child(even) .story-block__media { order: 0; }
 }
+
+/* ============================================================
+   EDITOR: pencil on full-bleed hero photos
+   The site header is fixed (116px, z-index 120), so a pencil pinned to the
+   top of a hero section lands underneath it. Push it clear of the header
+   and lift it above, otherwise the hero photo cannot be replaced at all.
+   ============================================================ */
+.page-hero > .edit-pencil {
+  top: calc(var(--header-h) + 14px);
+  right: 18px;
+  z-index: 130;
+}
+.hero > .edit-pencil { z-index: 130; }

@@ -1676,6 +1676,7 @@ body.lightbox-open { overflow: hidden; }
   .nav {
     position: fixed;
     inset: var(--header-h) 0 0 0;
+    z-index: 115;
     background:
       radial-gradient(700px 500px at 100% 0%, rgba(20, 48, 73, 0.5), transparent 60%),
       var(--navy-950);

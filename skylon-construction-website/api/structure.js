@@ -232,9 +232,10 @@ module.exports = async (req, res) => {
       clone = clone.replace(/alt="[^"]*"/, `alt="${alt}"`);
       clone = clone.replace(/<!--[\s\S]*?-->/g, "");
       // Fields marked data-blank start fresh in the clone, so a new person card
-      // does not arrive carrying the first person's name and role.
+      // does not arrive carrying the first person's name and role. The inner text
+      // may contain tags like <br>, so match through to the matching close tag.
       clone = clone.replace(
-        /(<([a-z0-9]+)\b[^>]*\bdata-blank="([^"]*)"[^>]*>)[\s\S]*?(<\/\2>)/gi,
+        /(<(h[1-6]|p|span|div)\b[^>]*\bdata-blank="([^"]*)"[^>]*>)(?:(?!<\/\2>)[\s\S])*(<\/\2>)/gi,
         function (_m, open, _tag, txt, close) { return open + txt + close; }
       );
       clone = clone.replace(/(<figcaption\b[^>]*>)[\s\S]*?(<\/figcaption>)/, "$1$2");

@@ -2190,3 +2190,32 @@ body.lightbox-open { overflow: hidden; }
       rgba(5, 14, 27, 0.80) 100%);
   }
 }
+
+/* ============================================================
+   GALLERY SEED
+   Empty galleries (Technical photos, Work in progress) ship with one
+   placeholder tile. The server clones it when the first real photo is
+   added, so it must exist in the markup, but visitors should not see it.
+   Shown only in edit mode. A cloned tile carries a real photo, so the
+   placeholder-based selector does not hide it.
+   ============================================================ */
+.grid figure:has(> .split__media > img[src$="placeholder-photo.webp"]) {
+  display: none;
+}
+body.is-editing .grid figure:has(> .split__media > img[src$="placeholder-photo.webp"]) {
+  display: block;
+  opacity: 0.55;
+  outline: 2px dashed var(--silver-400);
+  outline-offset: -2px;
+}
+
+/* When a project gallery holds nothing but placeholder tiles, hide the
+   whole section from visitors (an empty heading over nothing looks broken).
+   It stays visible in edit mode so the team can fill it. Applies only to
+   sections explicitly marked gallery-hideable (project galleries). */
+section.gallery-hideable:not(:has(.grid figure .split__media > img:not([src$="placeholder-photo.webp"]))) {
+  display: none;
+}
+body.is-editing section.gallery-hideable {
+  display: block;
+}

@@ -38,7 +38,12 @@
     ".edit-mini:hover{opacity:1;background:#143049}" +
     ".edit-mini--del{background:#5C1E22}.edit-mini--del:hover{background:#7A272D}" +
     ".edit-addbar{display:flex;justify-content:center;margin-top:18px}" +
-    ".edit-addbar .edit-btn{padding:13px 24px;font-size:13px;background:#0D2238;color:#E9EDF1;border-color:#0D2238}";
+    ".edit-addbar .edit-btn{padding:13px 24px;font-size:13px;background:#0D2238;color:#E9EDF1;border-color:#0D2238}" +
+    ".edit-catgrid{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}" +
+    /* captions are hover-only for visitors; in edit mode they must be visible and clickable */
+    "body.is-editing .masonry__caption{opacity:1;transform:none;pointer-events:auto}" +
+    "body.is-editing .masonry__item::after{opacity:1}" +
+    "body.is-editing .masonry__item{cursor:default}";
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -120,6 +125,18 @@
     var badge = el("div", "edit-badge", "Edit mode &middot; photos + text");
     document.body.appendChild(badge);
 
+    // Browsers do not let contenteditable work inside a <button>, so while
+    // editing, gallery tiles become plain <div>s. Visitors still get buttons.
+    document.querySelectorAll("button.masonry__item").forEach(function (btn) {
+      var d = document.createElement("div");
+      Array.prototype.forEach.call(btn.attributes, function (a) {
+        if (a.name !== "type") d.setAttribute(a.name, a.value);
+      });
+      d.innerHTML = btn.innerHTML;
+      d.classList.add("is-visible");
+      btn.parentNode.replaceChild(d, btn);
+    });
+
     var imgs = document.querySelectorAll('img[src^="assets/images/"]');
     imgs.forEach(function (img) {
       if (img.closest(".site-header") || img.closest(".footer")) return; // logos stay safe
@@ -153,11 +170,19 @@
       if (!document.body.classList.contains("is-editing")) return;
       var slot = e.target.closest && e.target.closest("[data-edit]");
       if (slot && e.target.closest("a[href]")) e.preventDefault();
+      // klik w podpis kafla edytuje tekst, nie otwiera lightboxa
+      if (e.target.closest && e.target.closest(".masonry__caption")) e.stopPropagation();
     }, true);
   }
 
 
   /* ---------- structure: reorder sections/cards, add/remove gallery photos ---------- */
+  // grid child = figure/article/a/button, or a gallery tile swapped to <div> in edit mode
+  function isGridChild(n) {
+    return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName) ||
+      (n.classList && n.classList.contains("masonry__item"));
+  }
+
   var STRUCT_API = "/api/structure";
   var layoutDirty = false;
   var pageName = (location.pathname.split("/").pop() || "index.html");
@@ -190,14 +215,14 @@
     // siatki: strzalki, kosz na figurach, Add photos
     document.querySelectorAll("[data-grid]").forEach(function (grid) {
       var kids = Array.prototype.filter.call(grid.children, function (n) {
-        return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName);
+        return isGridChild(n);
       });
       kids.forEach(function (kid, i) {
         kid.dataset.origIndex = String(i);
         decorateGridChild(grid, kid);
       });
       // Add photos tylko dla siatek figur
-      if (kids.length && /^(FIGURE|BUTTON)$/.test(kids[0].tagName) && kids[0].querySelector("img")) {
+      if (kids.length && (/^(FIGURE|BUTTON)$/.test(kids[0].tagName) || kids[0].classList.contains("masonry__item")) && kids[0].querySelector("img")) {
         var bar = el("div", "edit-addbar");
         var label = grid.getAttribute("data-add-label") || "+ Add photos";
         var btn = el("button", "edit-btn", label);
@@ -211,20 +236,24 @@
 
   function decorateGridChild(grid, kid) {
     kid.style.position = kid.style.position || "relative";
-    var isFig = /^(FIGURE|BUTTON)$/.test(kid.tagName) && kid.querySelector('img[src^="assets/images/"], img[src^="blob:"]');
+    var isFig = (/^(FIGURE|BUTTON)$/.test(kid.tagName) || kid.classList.contains("masonry__item")) && kid.querySelector('img[src^="assets/images/"], img[src^="blob:"]');
+    // project cards on projects.html can be removed too (card + its page)
+    var isCard = kid.tagName === "A" &&
+      grid.getAttribute("data-grid") === "projects-g1" && kid.querySelector("img");
     var tools = el("div", "edit-item-tools");
     tools.innerHTML =
       "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
       "<button class='edit-mini' data-right title='Move later'>\u2192</button>" +
-      (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "");
+      (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "") +
+      (isCard ? "<button class='edit-mini edit-mini--del' data-del title='Remove project'>\u00D7</button>" : "");
     tools.querySelector("[data-left]").addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation(); moveNode(kid, -1);
     });
     tools.querySelector("[data-right]").addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation(); moveNode(kid, 1);
     });
-    if (isFig) tools.querySelector("[data-del]").addEventListener("click", function (e) {
-      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid);
+    if (isFig || isCard) tools.querySelector("[data-del]").addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid, isCard);
     });
     kid.appendChild(tools);
   }
@@ -569,7 +598,7 @@
     Array.prototype.filter.call(main.children, function (n) { return n.tagName === "SECTION"; })
       .forEach(function (n, i) { n.dataset.origIndex = String(i); });
     document.querySelectorAll("[data-grid]").forEach(function (grid) {
-      Array.prototype.filter.call(grid.children, function (n) { return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName); })
+      Array.prototype.filter.call(grid.children, isGridChild)
         .forEach(function (n, i) { n.dataset.origIndex = String(i); });
     });
   }
@@ -581,12 +610,13 @@
     setTimeout(function () { ok.remove(); }, 5000);
   }
 
-  function removeFigure(grid, fig) {
+  function removeFigure(grid, fig, isCard) {
     if (layoutDirty) { alert("Save layout first, then remove photos."); return; }
-    if (!confirm("Remove this photo from the page?")) return;
-    var kids = Array.prototype.filter.call(grid.children, function (n) {
-      return /^(FIGURE|ARTICLE|A|BUTTON)$/.test(n.tagName);
-    });
+    var q = isCard
+      ? "Remove this project card AND its project page? This cannot be undone."
+      : "Remove this photo from the page?";
+    if (!confirm(q)) return;
+    var kids = Array.prototype.filter.call(grid.children, isGridChild);
     var index = kids.indexOf(fig);
     fetch(STRUCT_API, {
       method: "POST",
@@ -602,23 +632,59 @@
         if (!j.ok) { alert("Error: " + (j.error || "unknown")); return; }
         fig.remove();
         reindex();
-        flash("Photo removed \u2713 live in ~1 minute");
+        flash(isCard ? "Project removed \u2713 live in ~1 minute" : "Photo removed \u2713 live in ~1 minute");
       })
       .catch(function () { alert("Network error."); });
   }
 
+  var GALLERY_PICK = [
+    ["residential", "Residential"],
+    ["commercial", "Commercial"],
+    ["refurbishment", "Refurbishment"],
+    ["joinery", "Joinery & Finishes"],
+    ["progress", "In Progress"],
+  ];
+  var GALLERY_LABELS = {
+    residential: "Residential", commercial: "Commercial",
+    refurbishment: "Refurbishment", joinery: "Bespoke joinery", progress: "In progress",
+  };
+
   function addPhotos(grid) {
     if (layoutDirty) { alert("Save layout first, then add photos."); return; }
+    // gallery tiles carry data-cat, so ask for the category first
+    if (!grid.querySelector("[data-cat]")) { pickFiles(grid, ""); return; }
+    var active = document.querySelector('[data-filter-bar] .filter-btn[aria-pressed="true"]');
+    var pre = active ? active.getAttribute("data-filter") : "all";
+    var btns = GALLERY_PICK.map(function (c) {
+      var primary = c[0] === pre ? " edit-btn--primary" : "";
+      return "<button class='edit-btn" + primary + "' data-cat-pick='" + c[0] + "'>" + c[1] + "</button>";
+    }).join("");
+    var m = modal(
+      "<h3>Which category?</h3>" +
+      "<div class='edit-catgrid'>" + btns + "</div>" +
+      "<div class='edit-modal__row'><button class='edit-btn' data-x>Cancel</button></div>"
+    );
+    m.box.querySelectorAll("[data-cat-pick]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var cat = b.getAttribute("data-cat-pick");
+        m.root.remove();
+        pickFiles(grid, cat);
+      });
+    });
+    m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+  }
+
+  function pickFiles(grid, cat) {
     var input = el("input");
     input.type = "file"; input.accept = "image/*"; input.multiple = true;
     input.addEventListener("change", function () {
       var files = Array.prototype.slice.call(input.files || []);
-      if (files.length) addSequential(grid, files, 0);
+      if (files.length) addSequential(grid, files, 0, cat);
     });
     input.click();
   }
 
-  function addSequential(grid, files, i) {
+  function addSequential(grid, files, i, cat) {
     if (i >= files.length) { flash("Added " + files.length + " photo" + (files.length > 1 ? "s" : "") + " \u2713 live in ~1 minute"); return; }
     var reader = new FileReader();
     reader.onload = function () {
@@ -650,21 +716,36 @@
                     password: sessionStorage.getItem("skylonEditPw"),
                     page: pageName, action: "addFigure",
                     grid: grid.getAttribute("data-grid"), src: src, alt: "",
+                    cat: cat || undefined,
                   }),
                 }).then(function (r) { return r.json(); }).then(function (j2) {
                   if (!j2.ok) { alert("Error: " + (j2.error || "")); return; }
                   // natychmiastowy podglad: klon pierwszej figury
-                  var tpl = grid.querySelector("figure, button.masonry__item") || grid.children[0];
+                  var tpl = grid.querySelector("figure, button.masonry__item, div.masonry__item") || grid.children[0];
                   var clone = tpl.cloneNode(true);
                   clone.querySelectorAll(".edit-item-tools,.edit-pencil").forEach(function (n) { n.remove(); });
                   clone.querySelectorAll("[data-edit]").forEach(function (n) { n.removeAttribute("data-edit"); n.removeAttribute("contenteditable"); });
                   clone.querySelectorAll("[data-img]").forEach(function (n) { n.removeAttribute("data-img"); });
                   var im = clone.querySelector("img");
                   im.src = URL.createObjectURL(blob); im.removeAttribute("srcset");
+                  // reveal animation never runs for injected nodes, force visibility
+                  clone.classList.add("is-visible");
+                  if (cat) {
+                    clone.setAttribute("data-cat", cat);
+                    var capCat = clone.querySelector(".masonry__caption > span");
+                    var capTitle = clone.querySelector(".masonry__caption strong");
+                    if (capCat) capCat.textContent = GALLERY_LABELS[cat];
+                    if (capTitle) capTitle.textContent = "Untitled";
+                    var activeBtn = document.querySelector('[data-filter-bar] .filter-btn[aria-pressed="true"]');
+                    if (activeBtn) {
+                      var v = activeBtn.getAttribute("data-filter");
+                      clone.hidden = !(v === "all" || v === cat);
+                    }
+                  }
                   grid.appendChild(clone);
                   decorateGridChild(grid, clone);
                   reindex();
-                  addSequential(grid, files, i + 1);
+                  addSequential(grid, files, i + 1, cat);
                 });
               })
               .catch(function () { alert("Network error."); });

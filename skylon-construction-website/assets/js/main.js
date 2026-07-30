@@ -82,12 +82,13 @@
 
   if (filterBar) {
     var filterButtons = filterBar.querySelectorAll(".filter-btn");
-    var filterables = document.querySelectorAll("[data-cat]");
 
     filterBar.addEventListener("click", function (e) {
       var btn = e.target.closest(".filter-btn");
       if (!btn) return;
 
+      // query at click time so tiles added by the site editor are included
+      var filterables = document.querySelectorAll("[data-cat]");
       var value = btn.getAttribute("data-filter");
 
       filterButtons.forEach(function (b) {

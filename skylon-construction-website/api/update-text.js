@@ -6,8 +6,10 @@ const REPO = "Piotr3009/Skylon-Construction-Web";
 const BRANCH = "main";
 const SITE_DIR = "skylon-construction-website";
 const PAGE_RE = /^[a-z0-9\-]+\.html$/;
-const ID_RE = /^[a-z0-9\-]+-\d{3}$/;
-const TAGS = "(?:h1|h2|h3|h4|p|li|dt|dd|figcaption|summary)";
+// Any slot name built from letters/digits/hyphens (no regex metacharacters:
+// the id is interpolated into a RegExp below, so the charset must stay this tight).
+const ID_RE = /^[a-z0-9][a-z0-9\-]{1,78}[a-z0-9]$/;
+const TAGS = "(?:h1|h2|h3|h4|p|li|dt|dd|figcaption|summary|span|strong|a|blockquote)";
 const MAX_EDITS = 40;
 const MAX_LEN = 4000;
 

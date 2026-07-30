@@ -5,10 +5,19 @@ const REPO = "Piotr3009/Skylon-Construction-Web";
 const BRANCH = "main";
 const SITE_DIR = "skylon-construction-website";
 const PAGE_RE = /^[a-z0-9\-]+\.html$/;
-const GRID_RE = /^[a-z0-9\-]+-g\d+$/;
+// Grid names are plain slugs (interpolated into a RegExp, so charset stays tight).
+const GRID_RE = /^[a-z0-9][a-z0-9\-]{1,58}[a-z0-9]$/;
 const IMG_RE = /^[a-z0-9\-]+-i\d+$/;
 const CARD_RE = /^projects-c\d+$/;
 const CATS = ["residential", "commercial", "refurbishment"];
+// Gallery filter categories -> caption eyebrow text shown on the tile.
+const GALLERY_CATS = {
+  residential: "Residential",
+  commercial: "Commercial",
+  refurbishment: "Refurbishment",
+  joinery: "Bespoke joinery",
+  progress: "In progress",
+};
 const SRC_RE = /^assets\/images\/[a-z0-9][a-z0-9\-\/_.]*\.(webp|jpg|jpeg|png)$/i;
 
 function safeEqual(a, b) {
@@ -93,14 +102,21 @@ function permute(fragment, blocks, order) {
   return out;
 }
 
+// Renumber ids of the form  attr="<prefix>-<pattern>"  regardless of prefix.
+// The next number for each prefix is max(existing on the page) + 1, so clones
+// inside any grid (gallery, project galleries, partners) get fresh unique ids.
 function renumberAttr(cloneHtml, fullHtml, slug, attr, pat, fmt) {
-  let max = 0;
-  const re = new RegExp(`${attr}="${slug}-${pat}"`, "g");
+  const maxima = Object.create(null);
+  const scan = new RegExp(`${attr}="([a-z0-9\\-]+?)-${pat}"`, "g");
   let m;
-  while ((m = re.exec(fullHtml))) max = Math.max(max, parseInt(m[1], 10));
-  return cloneHtml.replace(new RegExp(`${attr}="${slug}-${pat.replace(/\((.*)\)/, "$1")}"`, "g"), function () {
-    max += 1;
-    return `${attr}="${slug}-${fmt(max)}"`;
+  while ((m = scan.exec(fullHtml))) {
+    const n = parseInt(m[2], 10);
+    if (!(m[1] in maxima) || n > maxima[m[1]]) maxima[m[1]] = n;
+  }
+  return cloneHtml.replace(new RegExp(`${attr}="([a-z0-9\\-]+?)-${pat}"`, "g"), function (_a, prefix) {
+    const next = (maxima[prefix] || 0) + 1;
+    maxima[prefix] = next;
+    return `${attr}="${prefix}-${fmt(next)}"`;
   });
 }
 function renumberDataCard(cloneHtml, fullHtml) {
@@ -125,6 +141,8 @@ function renumberDataEdit(cloneHtml, fullHtml, slug) {
     function (n) { return String(n).padStart(3, "0"); });
   cloneHtml = renumberAttr(cloneHtml, fullHtml, slug, "data-img", "i(\\d+)",
     function (n) { return "i" + n; });
+  cloneHtml = renumberAttr(cloneHtml, fullHtml, slug, "data-link", "l(\\d+)",
+    function (n) { return "l" + n; });
   return cloneHtml;
 }
 
@@ -184,6 +202,7 @@ module.exports = async (req, res) => {
     }
     let html = Buffer.from(meta.content, "base64").toString("utf8");
     let message = "";
+    let deletePageSlug = "";
 
     if (body.action === "reorder") {
       let changed = 0;
@@ -231,16 +250,25 @@ module.exports = async (req, res) => {
       clone = clone.replace(/src="assets\/images\/[^"]+"/, `src="${src}"`);
       clone = clone.replace(/alt="[^"]*"/, `alt="${alt}"`);
       clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+      // Plain figcaptions start empty; ones marked data-blank get refilled below.
+      clone = clone.replace(/(<figcaption\b[^>]*>)[\s\S]*?(<\/figcaption>)/, "$1$2");
       // Fields marked data-blank start fresh in the clone, so a new person card
       // does not arrive carrying the first person's name and role. The inner text
       // may contain tags like <br>, so match through to the matching close tag.
       clone = clone.replace(
-        /(<(h[1-6]|p|span|div)\b[^>]*\bdata-blank="([^"]*)"[^>]*>)(?:(?!<\/\2>)[\s\S])*(<\/\2>)/gi,
+        /(<(h[1-6]|p|span|div|strong|figcaption)\b[^>]*\bdata-blank="([^"]*)"[^>]*>)(?:(?!<\/\2>)[\s\S])*(<\/\2>)/gi,
         function (_m, open, _tag, txt, close) { return open + txt + close; }
       );
-      clone = clone.replace(/(<figcaption\b[^>]*>)[\s\S]*?(<\/figcaption>)/, "$1$2");
-      clone = clone.replace(/<span class="masonry__caption">[\s\S]*?<\/strong>\s*<\/span>/, "");
       clone = clone.replace(/aria-label="[^"]*"/, 'aria-label="View larger"');
+      // Gallery adds carry the category the person picked in the editor.
+      const cat = GALLERY_CATS[body.cat] ? String(body.cat) : "";
+      if (cat) {
+        clone = clone.replace(/data-cat="[^"]*"/, `data-cat="${cat}"`);
+        clone = clone.replace(
+          /(<span class="masonry__caption"><span\b[^>]*>)[\s\S]*?(<\/span>)/,
+          `$1${GALLERY_CATS[cat]}$2`
+        );
+      }
       clone = renumberDataEdit(clone, html, slug);
       const last = figures[figures.length - 1];
       const insertAt = region.start + last.end;
@@ -260,9 +288,18 @@ module.exports = async (req, res) => {
       if (index >= blocks.length) { res.status(400).json({ error: "Index out of range" }); return; }
       if (blocks.length <= 1) { res.status(400).json({ error: "Cannot remove the last item" }); return; }
       const b = blocks[index];
+      const removed = frag.slice(b.start, b.end);
       const newFrag = frag.slice(0, b.start) + frag.slice(b.end);
       html = html.slice(0, region.start) + newFrag + html.slice(region.end);
       message = `Gallery remove via site editor: ${page} (#${index + 1})`;
+      // Removing a project card also removes its page and sitemap entry,
+      // so search engines are not left indexing an orphan.
+      if (gid === "projects-g1") {
+        const hrefM = removed.match(/href="(project-[a-z0-9\-]+\.html)"/);
+        const KEEP = ["project-template.html", "project-single.html"];
+        if (hrefM && !KEEP.includes(hrefM[1])) deletePageSlug = hrefM[1];
+        message = `Project removed via site editor: ${hrefM ? hrefM[1] : "#" + (index + 1)}`;
+      }
     } else if (body.action === "setImageSrc") {
       const imgId = body.imgId, src = body.src;
       if (!IMG_RE.test(String(imgId)) || !SRC_RE.test(String(src))) {
@@ -504,6 +541,32 @@ module.exports = async (req, res) => {
       const detail = await put.text();
       res.status(502).json({ error: "GitHub commit failed", detail: detail.slice(0, 200) });
       return;
+    }
+    if (deletePageSlug) {
+      // Best effort: the card is already gone, a stray file is recoverable.
+      try {
+        const delApi = `https://api.github.com/repos/${REPO}/contents/${encodeURI(SITE_DIR + "/" + deletePageSlug)}`;
+        const delMeta = await ghGet(delApi, ghHeaders);
+        if (delMeta) {
+          await fetch(delApi, {
+            method: "DELETE",
+            headers: { ...ghHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: `Project page removed via site editor: ${deletePageSlug}`,
+              sha: delMeta.sha,
+              branch: BRANCH,
+            }),
+          });
+        }
+        const smApi = `https://api.github.com/repos/${REPO}/contents/${encodeURI(SITE_DIR + "/sitemap.xml")}`;
+        const smMeta = await ghGet(smApi, ghHeaders);
+        if (smMeta) {
+          const sm = Buffer.from(smMeta.content, "base64").toString("utf8");
+          const safe = deletePageSlug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const cleaned = sm.replace(new RegExp(`\\s*<url>\\s*<loc>[^<]*/${safe}</loc>[\\s\\S]*?</url>`), "");
+          if (cleaned !== sm) await ghPut(smApi, ghHeaders, `Sitemap: remove ${deletePageSlug}`, cleaned, smMeta.sha);
+        }
+      } catch (_e) { /* ignore */ }
     }
     res.status(200).json({ ok: true });
   } catch (e) {

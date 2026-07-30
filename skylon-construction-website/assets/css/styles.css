@@ -2215,3 +2215,39 @@ body.is-editing .grid figure:has(> .split__media > img[src$="placeholder-photo.w
 body:not(.is-editing) section.gallery-hideable:not(:has(.grid figure .split__media > img:not([src$="placeholder-photo.webp"]))) {
   display: none;
 }
+
+/* ---------- Video lightbox (videos page) ---------- */
+[data-video] { cursor: pointer; }
+.video-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(5, 14, 27, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.video-lightbox video {
+  width: 100%;
+  max-width: min(1100px, 100%);
+  max-height: 86vh;
+  background: #000;
+  border-radius: 6px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.video-lightbox__close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+.video-lightbox__close:hover { background: rgba(255, 255, 255, 0.22); }

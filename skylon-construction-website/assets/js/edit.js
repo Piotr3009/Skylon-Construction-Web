@@ -159,6 +159,23 @@
       holder.appendChild(b);
     });
 
+    // hero loop: a small film button on the homepage header
+    var heroVid = document.querySelector(".hero__media video, .page-hero__media video");
+    if (heroVid) {
+      var heroSec = heroVid.closest("section") || heroVid.parentElement;
+      heroSec.classList.add("edit-wrap");
+      var hb = el("button", "edit-pencil");
+      hb.type = "button";
+      hb.title = "Replace hero video";
+      hb.innerHTML =
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 6h11v12H4zM15 10l5-3.5v11L15 14" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+      hb.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        heroVideoFlow(heroVid);
+      });
+      heroSec.appendChild(hb);
+    }
+
     initTextEditing();
     initStructure();
     initCaseStudyCreation();
@@ -230,6 +247,13 @@
         btn.addEventListener("click", function () { addPhotos(grid); });
         bar.appendChild(btn);
         grid.parentElement.insertBefore(bar, grid.nextSibling);
+      } else if (grid.getAttribute("data-grid") === "videos-g1") {
+        var vbar = el("div", "edit-addbar");
+        var vbtn = el("button", "edit-btn", "+ Add video");
+        vbtn.type = "button";
+        vbtn.addEventListener("click", function () { addVideoFlow(grid); });
+        vbar.appendChild(vbtn);
+        grid.parentElement.insertBefore(vbar, grid.nextSibling);
       }
     });
   }
@@ -240,20 +264,24 @@
     // project cards on projects.html can be removed too (card + its page)
     var isCard = kid.tagName === "A" &&
       grid.getAttribute("data-grid") === "projects-g1" && kid.querySelector("img");
+    // video cards on videos.html can be removed too (card + file in storage)
+    var isVid = kid.tagName === "ARTICLE" &&
+      grid.getAttribute("data-grid") === "videos-g1" && kid.querySelector("img");
     var tools = el("div", "edit-item-tools");
     tools.innerHTML =
       "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
       "<button class='edit-mini' data-right title='Move later'>\u2192</button>" +
       (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "") +
-      (isCard ? "<button class='edit-mini edit-mini--del' data-del title='Remove project'>\u00D7</button>" : "");
+      (isCard ? "<button class='edit-mini edit-mini--del' data-del title='Remove project'>\u00D7</button>" : "") +
+      (isVid ? "<button class='edit-mini edit-mini--del' data-del title='Remove video'>\u00D7</button>" : "");
     tools.querySelector("[data-left]").addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation(); moveNode(kid, -1);
     });
     tools.querySelector("[data-right]").addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation(); moveNode(kid, 1);
     });
-    if (isFig || isCard) tools.querySelector("[data-del]").addEventListener("click", function (e) {
-      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid, isCard);
+    if (isFig || isCard || isVid) tools.querySelector("[data-del]").addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid, isCard, isVid);
     });
     kid.appendChild(tools);
   }
@@ -610,11 +638,13 @@
     setTimeout(function () { ok.remove(); }, 5000);
   }
 
-  function removeFigure(grid, fig, isCard) {
+  function removeFigure(grid, fig, isCard, isVid) {
     if (layoutDirty) { alert("Save layout first, then remove photos."); return; }
     var q = isCard
       ? "Remove this project card AND its project page? This cannot be undone."
-      : "Remove this photo from the page?";
+      : isVid
+        ? "Remove this video? The file will also be deleted from storage."
+        : "Remove this photo from the page?";
     if (!confirm(q)) return;
     var kids = Array.prototype.filter.call(grid.children, isGridChild);
     var index = kids.indexOf(fig);
@@ -632,10 +662,18 @@
         if (!j.ok) { alert("Error: " + (j.error || "unknown")); return; }
         fig.remove();
         reindex();
-        flash(isCard ? "Project removed \u2713 live in ~1 minute" : "Photo removed \u2713 live in ~1 minute");
+        flash(isCard ? "Project removed \u2713 live in ~1 minute"
+          : isVid ? "Video removed \u2713 live in ~1 minute"
+          : "Photo removed \u2713 live in ~1 minute");
       })
       .catch(function () { alert("Network error."); });
   }
+
+  var VIDEO_API = "/api/upload-video";
+  var BLOB_CLIENT_URL = "https://esm.sh/@vercel/blob@2.6.1/client";
+  var VIDEO_CATS = ["Residential", "Commercial", "Refurbishment", "Workshop", "Finishes", "The team"];
+  var MAX_VIDEO_MB = 500;
+  var MAX_HERO_MB = 30;
 
   var GALLERY_PICK = [
     ["residential", "Residential"],
@@ -672,6 +710,255 @@
       });
     });
     m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+  }
+
+  /* ---------- videos: upload to Vercel Blob straight from the browser ---------- */
+  function addVideoFlow(grid) {
+    if (layoutDirty) { alert("Save layout first, then add videos."); return; }
+    var cats = VIDEO_CATS.map(function (c) {
+      return "<button class='edit-btn' data-vcat=\"" + c + "\">" + c + "</button>";
+    }).join("");
+    var m = modal(
+      "<h3>Add a video</h3>" +
+      "<input type='file' accept='video/mp4,video/webm,video/quicktime' class='vfile' style='width:100%;font:400 14px Inter'>" +
+      "<input type='text' class='vtitle' placeholder='Video title' maxlength='90' style='width:100%;margin-top:12px;padding:12px;border:1px solid #C5CED7;border-radius:4px;font:400 15px Inter'>" +
+      "<div class='edit-msg' style='margin-top:12px'>Category:</div>" +
+      "<div class='edit-catgrid vcats'>" + cats + "</div>" +
+      "<div class='edit-progress' style='display:none;height:8px;border-radius:4px;background:#E3E8EE;margin-top:14px;overflow:hidden'><div class='edit-progress__bar' style='height:100%;width:0%;background:#0D2238'></div></div>" +
+      "<div class='edit-msg vstate'></div>" +
+      "<div class='edit-modal__row'>" +
+      "<button class='edit-btn' data-x>Cancel</button>" +
+      "<button class='edit-btn edit-btn--primary' data-ok>Upload</button></div>"
+    );
+    var chosenCat = "";
+    m.box.querySelectorAll("[data-vcat]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        chosenCat = b.getAttribute("data-vcat");
+        m.box.querySelectorAll("[data-vcat]").forEach(function (x) { x.classList.remove("edit-btn--primary"); });
+        b.classList.add("edit-btn--primary");
+      });
+    });
+    m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+    m.box.querySelector("[data-ok]").addEventListener("click", function () {
+      var file = (m.box.querySelector(".vfile").files || [])[0];
+      var title = m.box.querySelector(".vtitle").value.trim();
+      var state = m.box.querySelector(".vstate");
+      if (!file) { state.textContent = "Pick a video file first."; return; }
+      if (!title) { state.textContent = "Give the video a title."; return; }
+      if (!chosenCat) { state.textContent = "Pick a category."; return; }
+      if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+        state.textContent = "This file is over " + MAX_VIDEO_MB + " MB. Please compress the video first.";
+        return;
+      }
+      uploadVideo(grid, file, title, chosenCat, m);
+    });
+  }
+
+  // A poster frame is taken from the middle of the film, so the girls never
+  // have to prepare a thumbnail by hand.
+  function grabPoster(file) {
+    return new Promise(function (resolve) {
+      var v = document.createElement("video");
+      var url = URL.createObjectURL(file);
+      var done = false;
+      function finish(blob) {
+        if (done) return;
+        done = true;
+        URL.revokeObjectURL(url);
+        resolve(blob);
+      }
+      var timer = setTimeout(function () { finish(null); }, 8000);
+      v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = url;
+      v.addEventListener("loadeddata", function () {
+        var t = Math.min(2, (v.duration || 4) / 2);
+        try { v.currentTime = t; } catch (_e) { clearTimeout(timer); finish(null); }
+      });
+      v.addEventListener("seeked", function () {
+        try {
+          var w = Math.min(1200, v.videoWidth || 1200);
+          var h = Math.round(w * (v.videoHeight || 675) / (v.videoWidth || 1200));
+          var c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(v, 0, 0, w, h);
+          c.toBlob(function (b) { clearTimeout(timer); finish(b); }, "image/webp", 0.82);
+        } catch (_e) { clearTimeout(timer); finish(null); }
+      });
+      v.addEventListener("error", function () { clearTimeout(timer); finish(null); });
+    });
+  }
+
+  function uploadPoster(posterBlob, posterPath, pw) {
+    if (!posterBlob) return Promise.resolve("assets/images/placeholder-photo.webp");
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onerror = function () { resolve("assets/images/placeholder-photo.webp"); };
+      r.onload = function () {
+        fetch(API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pw, path: posterPath, dataBase64: String(r.result).split(",")[1] }),
+        })
+          .then(function (res) { return res.json().then(function (j) { return { s: res.status, j: j }; }); })
+          .then(function (up) {
+            if (up.s === 401) reject({ auth: true });
+            else if (!up.j.ok) reject({ msg: up.j.error });
+            else resolve(posterPath);
+          })
+          .catch(function () { reject({ msg: "network, try again" }); });
+      };
+      r.readAsDataURL(posterBlob);
+    });
+  }
+
+  function blobUpload(path, file, pw, bar) {
+    return import(BLOB_CLIENT_URL).then(function (mod) {
+      return mod.upload(path, file, {
+        access: "public",
+        handleUploadUrl: VIDEO_API,
+        clientPayload: JSON.stringify({ password: pw }),
+        multipart: true,
+        onUploadProgress: function (p) {
+          if (bar && p && typeof p.percentage === "number") bar.style.width = p.percentage + "%";
+        },
+      });
+    });
+  }
+
+  function uploadVideo(grid, file, title, cat, m) {
+    var state = m.box.querySelector(".vstate");
+    var okBtn = m.box.querySelector("[data-ok]");
+    var bar = m.box.querySelector(".edit-progress__bar");
+    m.box.querySelector(".edit-progress").style.display = "block";
+    okBtn.disabled = true;
+    state.textContent = "Preparing thumbnail\u2026";
+    var pw = sessionStorage.getItem("skylonEditPw");
+    var stamp = Date.now();
+    var posterPath = "assets/images/uploads/videos-g1-" + stamp + ".webp";
+    var slugTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "video";
+    var ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+    if (!/^(mp4|webm|mov)$/.test(ext)) ext = "mp4";
+    var videoPath = "videos/" + slugTitle + "-" + stamp + "." + ext;
+
+    grabPoster(file)
+      .then(function (posterBlob) { return uploadPoster(posterBlob, posterPath, pw); })
+      .then(function (poster) {
+        state.textContent = "Uploading video\u2026 big files can take a few minutes, keep this tab open.";
+        return blobUpload(videoPath, file, pw, bar).then(function (blob) {
+          return { blob: blob, poster: poster };
+        });
+      })
+      .then(function (r) {
+        state.textContent = "Publishing\u2026";
+        return fetch(STRUCT_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            password: pw, page: pageName, action: "addVideo",
+            videoUrl: r.blob.url, posterSrc: r.poster, title: title, cat: cat,
+          }),
+        }).then(function (res) {
+          return res.json().then(function (j) { return { s: res.status, j: j, up: r }; });
+        });
+      })
+      .then(function (res) {
+        if (res.s === 401) throw { auth: true };
+        if (!res.j.ok) throw { msg: res.j.error };
+        insertVideoCard(grid, res.up.blob.url, res.up.poster, title, cat);
+        m.root.remove();
+        flash("Video added \u2713 live in ~1 minute");
+      })
+      .catch(function (err) {
+        okBtn.disabled = false;
+        if (err && err.auth) {
+          sessionStorage.removeItem("skylonEditPw");
+          state.textContent = "Wrong password. Click the logo 5\u00D7 and try again.";
+        } else {
+          state.textContent = "Error: " + ((err && (err.msg || err.message)) || "upload failed, try again");
+        }
+      });
+  }
+
+  function insertVideoCard(grid, videoUrl, poster, title, cat) {
+    var tpl = grid.querySelector("article.video-card") || grid.children[0];
+    if (!tpl) return;
+    var clone = tpl.cloneNode(true);
+    clone.querySelectorAll(".edit-item-tools,.edit-pencil").forEach(function (n) { n.remove(); });
+    clone.querySelectorAll("[data-edit]").forEach(function (n) { n.removeAttribute("data-edit"); n.removeAttribute("contenteditable"); });
+    clone.querySelectorAll("[data-img]").forEach(function (n) { n.removeAttribute("data-img"); });
+    var soon = clone.querySelector(".video-card__soon");
+    if (soon) soon.remove();
+    clone.setAttribute("data-video", videoUrl);
+    var im = clone.querySelector("img");
+    if (im) { im.src = poster; im.alt = title; }
+    var c = clone.querySelector(".video-card__cat");
+    if (c) c.textContent = cat;
+    var h = clone.querySelector("h3");
+    if (h) h.textContent = title;
+    clone.classList.add("is-visible");
+    grid.appendChild(clone);
+    decorateGridChild(grid, clone);
+    reindex();
+  }
+
+  /* ---------- hero loop replacement on the homepage ---------- */
+  function heroVideoFlow(videoEl) {
+    var m = modal(
+      "<h3>Replace the hero loop</h3>" +
+      "<p style='font:400 13.5px/1.5 Inter;color:#5B6B7C;margin:0 0 12px'>Short mp4 loop, up to " + MAX_HERO_MB + " MB. It plays automatically for every visitor, so keep it small and quiet.</p>" +
+      "<input type='file' accept='video/mp4' class='vfile' style='width:100%;font:400 14px Inter'>" +
+      "<div class='edit-progress' style='display:none;height:8px;border-radius:4px;background:#E3E8EE;margin-top:14px;overflow:hidden'><div class='edit-progress__bar' style='height:100%;width:0%;background:#0D2238'></div></div>" +
+      "<div class='edit-msg vstate'></div>" +
+      "<div class='edit-modal__row'>" +
+      "<button class='edit-btn' data-x>Cancel</button>" +
+      "<button class='edit-btn edit-btn--primary' data-ok>Upload</button></div>"
+    );
+    m.box.querySelector("[data-x]").addEventListener("click", function () { m.root.remove(); });
+    m.box.querySelector("[data-ok]").addEventListener("click", function () {
+      var file = (m.box.querySelector(".vfile").files || [])[0];
+      var state = m.box.querySelector(".vstate");
+      var okBtn = m.box.querySelector("[data-ok]");
+      var bar = m.box.querySelector(".edit-progress__bar");
+      if (!file) { state.textContent = "Pick an mp4 file first."; return; }
+      if (!/\.mp4$/i.test(file.name)) { state.textContent = "The hero loop must be an mp4 file."; return; }
+      if (file.size > MAX_HERO_MB * 1024 * 1024) {
+        state.textContent = "The hero loop must be under " + MAX_HERO_MB + " MB. Trim it or compress it first.";
+        return;
+      }
+      okBtn.disabled = true;
+      m.box.querySelector(".edit-progress").style.display = "block";
+      state.textContent = "Uploading\u2026";
+      var pw = sessionStorage.getItem("skylonEditPw");
+      blobUpload("videos/hero-loop-" + Date.now() + ".mp4", file, pw, bar)
+        .then(function (blob) {
+          state.textContent = "Publishing\u2026";
+          return fetch(STRUCT_API, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pw, page: pageName, action: "setHeroVideo", src: blob.url }),
+          }).then(function (res) {
+            return res.json().then(function (j) { return { s: res.status, j: j, url: blob.url }; });
+          });
+        })
+        .then(function (res) {
+          if (res.s === 401) throw { auth: true };
+          if (!res.j.ok) throw { msg: res.j.error };
+          var srcEl = videoEl.querySelector("source");
+          if (srcEl) { srcEl.src = res.url; videoEl.load(); }
+          var p = videoEl.play();
+          if (p && p.catch) p.catch(function () {});
+          m.root.remove();
+          flash("Hero video replaced \u2713 live in ~1 minute");
+        })
+        .catch(function (err) {
+          okBtn.disabled = false;
+          if (err && err.auth) {
+            sessionStorage.removeItem("skylonEditPw");
+            state.textContent = "Wrong password. Click the logo 5\u00D7 and try again.";
+          } else {
+            state.textContent = "Error: " + ((err && (err.msg || err.message)) || "upload failed, try again");
+          }
+        });
+    });
   }
 
   function pickFiles(grid, cat) {

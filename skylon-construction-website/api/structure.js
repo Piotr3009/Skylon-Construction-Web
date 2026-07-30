@@ -19,6 +19,18 @@ const GALLERY_CATS = {
   progress: "In progress",
 };
 const SRC_RE = /^assets\/images\/[a-z0-9][a-z0-9\-\/_.]*\.(webp|jpg|jpeg|png)$/i;
+// Videos live in Vercel Blob storage; only addresses from our own store are accepted.
+const VIDEO_URL_RE = /^https:\/\/[a-z0-9\-]+\.public\.blob\.vercel-storage\.com\/videos\/[a-z0-9\-]+-\d+\.(mp4|webm|mov)$/;
+
+// Best effort cleanup: the page edit is already committed, an orphan file
+// in storage costs pennies and is recoverable, so failures are swallowed.
+async function blobDelete(url) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
+  try {
+    const { del } = require("@vercel/blob");
+    await del(url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+  } catch (_e) { /* ignore */ }
+}
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a || ""));
@@ -203,6 +215,7 @@ module.exports = async (req, res) => {
     let html = Buffer.from(meta.content, "base64").toString("utf8");
     let message = "";
     let deletePageSlug = "";
+    let deleteBlobUrl = "";
 
     if (body.action === "reorder") {
       let changed = 0;
@@ -294,6 +307,12 @@ module.exports = async (req, res) => {
       message = `Gallery remove via site editor: ${page} (#${index + 1})`;
       // Removing a project card also removes its page and sitemap entry,
       // so search engines are not left indexing an orphan.
+      // Removing a video card also cleans its file from storage.
+      const vidM = removed.match(/data-video="([^"]+)"/);
+      if (vidM && VIDEO_URL_RE.test(vidM[1])) {
+        deleteBlobUrl = vidM[1];
+        message = `Video removed via site editor: ${page} (#${index + 1})`;
+      }
       if (gid === "projects-g1") {
         const hrefM = removed.match(/href="(project-[a-z0-9\-]+\.html)"/);
         const KEEP = ["project-template.html", "project-single.html"];
@@ -413,6 +432,52 @@ module.exports = async (req, res) => {
       }
       res.status(200).json({ ok: true, slug: newSlug });
       return;
+    } else if (body.action === "addVideo") {
+      // -------- NOWA KARTA FILMU NA STRONIE VIDEOS --------
+      const videoUrl = String(body.videoUrl || "");
+      const posterSrc = String(body.posterSrc || "");
+      const title = escapeHtml(String(body.title || "").trim().slice(0, 90) || "New video");
+      const cat = escapeHtml(String(body.cat || "").trim().slice(0, 40) || "On site");
+      if (!VIDEO_URL_RE.test(videoUrl) || !SRC_RE.test(posterSrc)) {
+        res.status(400).json({ error: "Bad video or poster address" });
+        return;
+      }
+      const region = gridRegion(html, "videos-g1");
+      if (!region) { res.status(404).json({ error: "Videos grid not found" }); return; }
+      const frag = html.slice(region.start, region.end);
+      const cards = topBlocks(frag, "article");
+      if (!cards.length) { res.status(400).json({ error: "No video card template" }); return; }
+      let clone = frag.slice(cards[0].start, cards[0].end);
+      clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+      clone = clone.replace(/\sdata-video="[^"]*"/g, "");
+      clone = clone.replace(/^<article\b/, `<article data-video="${videoUrl}"`);
+      clone = clone.replace(/src="assets\/images\/[^"]+"/, `src="${posterSrc}"`);
+      clone = clone.replace(/alt="[^"]*"/, `alt="${title}"`);
+      clone = clone.replace(/<span class="video-card__soon"[^>]*>[\s\S]*?<\/span>\s*/, "");
+      clone = clone.replace(/(<span class="video-card__cat"[^>]*>)[\s\S]*?(<\/span>)/, `$1${cat}$2`);
+      clone = clone.replace(/(<h3\b[^>]*>)[\s\S]*?(<\/h3>)/, `$1${title}$2`);
+      clone = renumberDataEdit(clone, html, slug);
+      const insertAt = region.end - "</div>".length;
+      html = html.slice(0, insertAt) + clone + "\n          " + html.slice(insertAt);
+      message = `Video added via site editor: ${page}`;
+    } else if (body.action === "setHeroVideo") {
+      // -------- PODMIANA PETLI W NAGLOWKU STRONY GLOWNEJ --------
+      const src = String(body.src || "");
+      if (page !== "index.html") {
+        res.status(400).json({ error: "The hero loop lives on index.html" });
+        return;
+      }
+      if (!VIDEO_URL_RE.test(src)) {
+        res.status(400).json({ error: "Bad video address" });
+        return;
+      }
+      const heroM = html.match(/(<video[^>]*>\s*<source src=")([^"]*)(" type="video\/[a-z0-9]+">)/);
+      if (!heroM) { res.status(404).json({ error: "Hero video tag not found" }); return; }
+      if (VIDEO_URL_RE.test(heroM[2])) deleteBlobUrl = heroM[2]; // old loop leaves storage
+      const ext = src.split(".").pop();
+      const mime = ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : "video/mp4";
+      html = html.replace(heroM[0], `${heroM[1]}${src}" type="${mime}">`);
+      message = "Hero video replaced via site editor";
     } else if (body.action === "setLink") {
       // -------- ADRES POD LOGO --------
       const linkId = String(body.link || "");
@@ -542,6 +607,7 @@ module.exports = async (req, res) => {
       res.status(502).json({ error: "GitHub commit failed", detail: detail.slice(0, 200) });
       return;
     }
+    if (deleteBlobUrl) await blobDelete(deleteBlobUrl);
     if (deletePageSlug) {
       // Best effort: the card is already gone, a stray file is recoverable.
       try {

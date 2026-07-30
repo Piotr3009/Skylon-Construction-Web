@@ -239,6 +239,45 @@
     heroVideo.pause();
   }
 
+  /* 5c. VIDEO CARDS — play in an overlay on the page ----------------------- */
+  function openVideoOverlay(src, poster) {
+    var wrap = document.createElement("div");
+    wrap.className = "video-lightbox";
+    wrap.innerHTML =
+      '<button class="video-lightbox__close" aria-label="Close video">&times;</button>' +
+      '<video controls autoplay playsinline' + (poster ? ' poster="' + poster + '"' : "") + ">" +
+      '<source src="' + src + '"></video>';
+    function close() {
+      wrap.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+    function onKey(ev) { if (ev.key === "Escape") close(); }
+    wrap.addEventListener("click", function (ev) {
+      if (ev.target === wrap || ev.target.classList.contains("video-lightbox__close")) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(wrap);
+  }
+
+  document.addEventListener("click", function (e) {
+    var card = e.target.closest && e.target.closest("[data-video]");
+    if (!card) return;
+    if (document.body.classList.contains("is-editing")) return; // editing beats playback
+    var src = card.getAttribute("data-video");
+    if (!src) return;
+    e.preventDefault();
+    var img = card.querySelector("img");
+    openVideoOverlay(src, img ? img.getAttribute("src") : "");
+  });
+
+  document.querySelectorAll("[data-video]").forEach(function (card) {
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "button");
+    card.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); card.click(); }
+    });
+  });
+
   /* 6. FOOTER YEAR ------------------------------------------------------------ */
   var yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());

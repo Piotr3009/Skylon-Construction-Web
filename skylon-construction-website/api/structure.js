@@ -145,6 +145,27 @@ function slugify(name) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) + ".html";
 }
+// Journal posts get their own prefix so they never collide with project pages.
+function journalSlug(name) {
+  return "journal-" + String(name).toLowerCase()
+    .replace(/&[a-z]+;/g, " ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) + ".html";
+}
+// Fallback card used when the journal grid is empty and there is nothing to clone.
+const BLOG_CARD_TPL =
+  '<a class="post-card reveal" style="--i:0" href="{{HREF}}">\n' +
+  '            <div class="post-card__media">\n' +
+  '              <img src="assets/images/placeholder-photo.webp" alt="" loading="lazy" data-img="blog-i1">\n' +
+  '            </div>\n' +
+  '            <div class="post-card__body">\n' +
+  '              <span class="post-card__meta"><span>{{CATEGORY}}</span><span>{{DATE}}</span></span>\n' +
+  '              <h3 data-edit="blog-001">{{TITLE}}</h3>\n' +
+  '              <p data-edit="blog-002">{{INTRO}}</p>\n' +
+  '              <span class="link-arrow">Read article <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h16m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>\n' +
+  '            </div>\n' +
+  '          </a>';
 function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -299,7 +320,12 @@ module.exports = async (req, res) => {
       const tag = childTagOf(frag);
       const blocks = topBlocks(frag, tag);
       if (index >= blocks.length) { res.status(400).json({ error: "Index out of range" }); return; }
-      if (blocks.length <= 1) { res.status(400).json({ error: "Cannot remove the last item" }); return; }
+      // The journal may legitimately end up empty; every other grid keeps one item
+      // so the editor always has a card to clone from.
+      if (blocks.length <= 1 && gid !== "blog-g1") {
+        res.status(400).json({ error: "Cannot remove the last item" });
+        return;
+      }
       const b = blocks[index];
       const removed = frag.slice(b.start, b.end);
       const newFrag = frag.slice(0, b.start) + frag.slice(b.end);
@@ -318,6 +344,12 @@ module.exports = async (req, res) => {
         const KEEP = ["project-template.html", "project-single.html"];
         if (hrefM && !KEEP.includes(hrefM[1])) deletePageSlug = hrefM[1];
         message = `Project removed via site editor: ${hrefM ? hrefM[1] : "#" + (index + 1)}`;
+      }
+      if (gid === "blog-g1") {
+        const hrefM = removed.match(/href="((?:journal|project)-[a-z0-9\-]+\.html)"/);
+        const KEEP_POSTS = ["blog-template.html", "blog-post.html", "blog.html"];
+        if (hrefM && !KEEP_POSTS.includes(hrefM[1])) deletePageSlug = hrefM[1];
+        message = `Journal post removed via site editor: ${hrefM ? hrefM[1] : "#" + (index + 1)}`;
       }
     } else if (body.action === "setImageSrc") {
       const imgId = body.imgId, src = body.src;
@@ -512,7 +544,7 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const postSlug = slugify(title);
+      const postSlug = journalSlug(title);
       const safeTitle = escapeHtml(title);
       const safeCat = escapeHtml(category);
       const safeIntro = escapeHtml(intro || title);
@@ -553,21 +585,40 @@ module.exports = async (req, res) => {
         if (!region) { res.status(404).json({ error: "Journal grid not found" }); return; }
         const frag = html.slice(region.start, region.end);
         const cards = topBlocks(frag, "a");
-        if (!cards.length) { res.status(400).json({ error: "No post card template" }); return; }
-        let clone = frag.slice(cards[0].start, cards[0].end);
-        clone = clone.replace(/href="[^"]*"/, `href="${postSlug}"`);
-        clone = clone.replace(/src="assets\/images\/[^"]+"/, 'src="assets/images/placeholder-photo.webp"');
-        clone = clone.replace(/alt="[^"]*"/, 'alt=""');
-        clone = clone.replace(
-          /(<span class="post-card__meta">)[\s\S]*?(<\/span>\s*<\/span>|<\/span>)/,
-          `$1<span>${safeCat}</span><span>${today}</span></span>`
-        );
-        clone = clone.replace(/(<h3[^>]*>)[\s\S]*?(<\/h3>)/, `$1${safeTitle}$2`);
-        clone = clone.replace(/(<p[^>]*>)[\s\S]*?(<\/p>)/, `$1${safeIntro}$2`);
-        clone = clone.replace(/<!--[\s\S]*?-->/g, "");
-        clone = renumberDataEdit(clone, html, slug);
+        let clone;
+        let insertOffset;
+        if (cards.length) {
+          clone = frag.slice(cards[0].start, cards[0].end);
+          clone = clone.replace(/href="[^"]*"/, `href="${postSlug}"`);
+          clone = clone.replace(/src="assets\/images\/[^"]+"/, 'src="assets/images/placeholder-photo.webp"');
+          clone = clone.replace(/alt="[^"]*"/, 'alt=""');
+          // Match the whole meta span including every inner span, so repeated
+          // creations cannot leave stale category/date fragments behind.
+          clone = clone.replace(
+            /<span class="post-card__meta">(?:\s*<span>[\s\S]*?<\/span>)*\s*<\/span>/,
+            `<span class="post-card__meta"><span>${safeCat}</span><span>${today}</span></span>`
+          );
+          clone = clone.replace(/(<h3[^>]*>)[\s\S]*?(<\/h3>)/, `$1${safeTitle}$2`);
+          clone = clone.replace(/(<p[^>]*>)[\s\S]*?(<\/p>)/, `$1${safeIntro}$2`);
+          clone = clone.replace(/<!--[\s\S]*?-->/g, "");
+          clone = renumberDataEdit(clone, html, slug);
+          insertOffset = cards[0].start;
+        } else {
+          // Empty journal: nothing to clone from, build the card from the fallback.
+          clone = BLOG_CARD_TPL
+            .split("{{HREF}}").join(postSlug)
+            .split("{{CATEGORY}}").join(safeCat)
+            .split("{{DATE}}").join(today)
+            .split("{{TITLE}}").join(safeTitle)
+            .split("{{INTRO}}").join(safeIntro);
+          clone = renumberDataEdit(clone, html, slug);
+          const openEnd = frag.indexOf(">");
+          if (openEnd === -1) { res.status(400).json({ error: "Journal grid malformed" }); return; }
+          insertOffset = openEnd + 1;
+          clone = "\n          " + clone;
+        }
         // nowy wpis na poczatek listy (najnowsze u gory)
-        const insertAt = region.start + cards[0].start;
+        const insertAt = region.start + insertOffset;
         html = html.slice(0, insertAt) + clone + "\n          " + html.slice(insertAt);
         const putGrid = await ghPut(api, ghHeaders,
           `Journal card added via site editor: ${postSlug}`, html, meta.sha);
@@ -618,7 +669,7 @@ module.exports = async (req, res) => {
             method: "DELETE",
             headers: { ...ghHeaders, "Content-Type": "application/json" },
             body: JSON.stringify({
-              message: `Project page removed via site editor: ${deletePageSlug}`,
+              message: `Page removed via site editor: ${deletePageSlug}`,
               sha: delMeta.sha,
               branch: BRANCH,
             }),

@@ -267,21 +267,25 @@
     // video cards on videos.html can be removed too (card + file in storage)
     var isVid = kid.tagName === "ARTICLE" &&
       grid.getAttribute("data-grid") === "videos-g1" && kid.querySelector("img");
+    // journal cards on blog.html can be removed too (card + its article page)
+    var isPost = kid.tagName === "A" &&
+      grid.getAttribute("data-grid") === "blog-g1" && kid.querySelector("img");
     var tools = el("div", "edit-item-tools");
     tools.innerHTML =
       "<button class='edit-mini' data-left title='Move earlier'>\u2190</button>" +
       "<button class='edit-mini' data-right title='Move later'>\u2192</button>" +
       (isFig ? "<button class='edit-mini edit-mini--del' data-del title='Remove photo'>\u00D7</button>" : "") +
       (isCard ? "<button class='edit-mini edit-mini--del' data-del title='Remove project'>\u00D7</button>" : "") +
-      (isVid ? "<button class='edit-mini edit-mini--del' data-del title='Remove video'>\u00D7</button>" : "");
+      (isVid ? "<button class='edit-mini edit-mini--del' data-del title='Remove video'>\u00D7</button>" : "") +
+      (isPost ? "<button class='edit-mini edit-mini--del' data-del title='Remove journal post'>\u00D7</button>" : "");
     tools.querySelector("[data-left]").addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation(); moveNode(kid, -1);
     });
     tools.querySelector("[data-right]").addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation(); moveNode(kid, 1);
     });
-    if (isFig || isCard || isVid) tools.querySelector("[data-del]").addEventListener("click", function (e) {
-      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid, isCard, isVid);
+    if (isFig || isCard || isVid || isPost) tools.querySelector("[data-del]").addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); removeFigure(grid, kid, isCard, isVid, isPost);
     });
     kid.appendChild(tools);
   }
@@ -638,13 +642,15 @@
     setTimeout(function () { ok.remove(); }, 5000);
   }
 
-  function removeFigure(grid, fig, isCard, isVid) {
+  function removeFigure(grid, fig, isCard, isVid, isPost) {
     if (layoutDirty) { alert("Save layout first, then remove photos."); return; }
     var q = isCard
       ? "Remove this project card AND its project page? This cannot be undone."
       : isVid
         ? "Remove this video? The file will also be deleted from storage."
-        : "Remove this photo from the page?";
+        : isPost
+          ? "Remove this journal post AND its article page? This cannot be undone."
+          : "Remove this photo from the page?";
     if (!confirm(q)) return;
     var kids = Array.prototype.filter.call(grid.children, isGridChild);
     var index = kids.indexOf(fig);
@@ -664,6 +670,7 @@
         reindex();
         flash(isCard ? "Project removed \u2713 live in ~1 minute"
           : isVid ? "Video removed \u2713 live in ~1 minute"
+          : isPost ? "Journal post removed \u2713 live in ~1 minute"
           : "Photo removed \u2713 live in ~1 minute");
       })
       .catch(function () { alert("Network error."); });
